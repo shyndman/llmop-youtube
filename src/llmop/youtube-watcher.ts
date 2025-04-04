@@ -1,4 +1,8 @@
 import { createSignal, onCleanup } from 'solid-js';
+import { createLogger } from './debug';
+
+// Create a logger for this module
+const logger = createLogger('YouTubeWatcher');
 
 // Create a signal to store the current video ID
 const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null);
@@ -30,7 +34,7 @@ export function extractVideoId(url: string): string | null {
     return null;
   } catch (error) {
     // If URL parsing fails, return null
-    console.error('[LLMOP] Error parsing URL:', error);
+    logger.error('Error parsing URL', error);
     return null;
   }
 }
@@ -44,12 +48,30 @@ export function isWatchPage(): boolean {
     const currentUrl = new URL(window.location.href);
     return currentUrl.pathname === '/watch' && currentUrl.searchParams.has('v');
   } catch (error) {
-    console.error(
-      '[LLMOP] Error checking if current page is a watch page:',
-      error,
-    );
+    logger.error('Error checking if current page is a watch page', error);
     return false;
   }
+}
+
+/**
+ * Shows a temporary notification with the video ID using GM.notification
+ * @param videoId The video ID to display
+ * @param isShortUrl Whether this is from a youtu.be URL
+ */
+function showVideoIdNotification(videoId: string, isShortUrl = false): void {
+  const urlType = isShortUrl ? 'youtu.be' : 'youtube.com';
+  const title = 'LLMOP YouTube Detected';
+  const text = `Source: ${urlType}\nVideo ID: ${videoId}`;
+
+  // Use GM.notification to show a system notification
+  GM.notification({
+    title,
+    text,
+    image: 'https://www.youtube.com/favicon.ico', // YouTube favicon
+    onclick: () => {
+      logger.log('Notification clicked');
+    },
+  });
 }
 
 /**
@@ -62,20 +84,32 @@ function processCurrentUrl(): void {
     if (currentUrl.pathname === '/watch' && currentUrl.searchParams.has('v')) {
       const videoId = currentUrl.searchParams.get('v');
       setCurrentVideoId(videoId);
-      console.log(`[LLMOP] Detected YouTube video: ${videoId}`);
+      logger.info(`Detected YouTube video: ${videoId}`);
+
+      // Show notification for testing
+      if (videoId) {
+        showVideoIdNotification(videoId);
+        logger.log('Showing notification for video', { videoId });
+      }
     } else if (
       currentUrl.hostname === 'youtu.be' &&
       currentUrl.pathname.length > 1
     ) {
       const videoId = currentUrl.pathname.substring(1);
       setCurrentVideoId(videoId);
-      console.log(`[LLMOP] Detected YouTube video (short URL): ${videoId}`);
+      logger.info(`Detected YouTube video (short URL): ${videoId}`);
+
+      // Show notification for testing
+      if (videoId) {
+        showVideoIdNotification(videoId, true);
+        logger.log('Showing notification for short URL video', { videoId });
+      }
     } else {
       setCurrentVideoId(null);
-      console.log('[LLMOP] Not on a YouTube watch page');
+      logger.info('Not on a YouTube watch page', { url: currentUrl.href });
     }
   } catch (error) {
-    console.error('[LLMOP] Error processing URL:', error);
+    logger.error('Error processing URL', error);
     setCurrentVideoId(null);
   }
 }
@@ -85,42 +119,27 @@ function processCurrentUrl(): void {
  * Sets up listeners for URL changes and processes the initial URL
  */
 export function initYouTubeWatcher(): void {
+  logger.log('Initializing YouTube watcher');
+
+  // Use onNavigate from @violentmonkey/url to handle all navigation events
+  // This handles pushState, replaceState, and popstate events automatically
+  logger.log('Setting up onNavigate listener');
+  const cleanup = onNavigate(() => {
+    logger.log('Navigation detected', { url: window.location.href });
+    processCurrentUrl();
+  });
+
   // Process the initial URL
+  logger.log('Processing initial URL', { url: window.location.href });
   processCurrentUrl();
-
-  // Set up a listener for the popstate event (browser back/forward)
-  window.addEventListener('popstate', processCurrentUrl);
-
-  // YouTube uses pushState for navigation, so we need to override it
-  const originalPushState = history.pushState;
-  history.pushState = function (...args) {
-    // Call the original function
-    const result = originalPushState.apply(this, args);
-
-    // Process the new URL
-    processCurrentUrl();
-
-    return result;
-  };
-
-  // Also override replaceState
-  const originalReplaceState = history.replaceState;
-  history.replaceState = function (...args) {
-    // Call the original function
-    const result = originalReplaceState.apply(this, args);
-
-    // Process the new URL
-    processCurrentUrl();
-
-    return result;
-  };
 
   // Clean up event listeners when the component is unmounted
   onCleanup(() => {
-    window.removeEventListener('popstate', processCurrentUrl);
-    history.pushState = originalPushState;
-    history.replaceState = originalReplaceState;
+    logger.log('Cleaning up YouTube watcher');
+    cleanup(); // Remove the onNavigate listener
   });
+
+  logger.log('YouTube watcher initialized');
 }
 
 // Export the video ID signal for use in other components

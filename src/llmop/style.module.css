@@ -4,6 +4,7 @@
 /* Video info */
 .videoInfo {
   @apply mt-2 text-sm font-medium text-gray-700;
+  display: none;
 }
 
 :global([data-theme='dark']) .videoInfo {

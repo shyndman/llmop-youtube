@@ -3,11 +3,13 @@
 // @namespace   Violentmonkey Scripts
 // @description Summarize and timestamp YouTube videos
 // @match       https://www.youtube.com/*
-// @grant       GM_addElement
-// @grant       GM_addStyle
-// @grant       GM_xmlhttpRequest
+// @run-at      document-start
+// @grant       GM.getValue
+// @grant       GM.setValue
+// @grant       GM.notification
 // @grant       GM_getValue
 // @grant       GM_setValue
+// @grant       GM_notification
 // @version     0.0.0
 // @author      process.env.AUTHOR
 // @require     https://cdn.jsdelivr.net/npm/@violentmonkey/dom@2
