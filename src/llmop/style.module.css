@@ -3,12 +3,11 @@
 
 /* Video info */
 .videoInfo {
-  @apply mt-2 text-sm font-medium text-gray-700;
-  display: none;
+  @apply mt-2 text-sm font-medium text-gray-700 font-sans;
 }
 
 :global([data-theme='dark']) .videoInfo {
-  @apply text-gray-300;
+  @apply text-gray-300 font-sans;
 }
 
 /* Summarize button */
@@ -72,12 +71,12 @@
 
 /* Timestamp button */
 .timestampButton {
-  @apply bg-blue-500 text-white text-xs px-2 py-1 rounded hover:bg-blue-600 transition-colors;
+  @apply bg-blue-500 text-white text-sm px-2 py-1 rounded hover:bg-blue-600 transition-colors;
 }
 
 /* Event description */
 .eventDescription {
-  @apply text-sm text-gray-600 mt-1;
+  @apply text-gray-600 mt-1;
 }
 
 :global([data-theme='dark']) .eventDescription {

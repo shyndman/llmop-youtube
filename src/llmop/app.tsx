@@ -169,6 +169,52 @@ function YouTubeSummarizer() {
       if (videoElement) {
         videoElement.currentTime = seconds;
         logger.info(`Seeking to timestamp: ${seconds} seconds`);
+
+        // Find the YouTube player element
+        const playerElement = document.querySelector('.html5-video-player');
+        if (playerElement) {
+          // Check if it has the ytp-autohide class
+          if (playerElement.classList.contains('ytp-autohide')) {
+            logger.info('Temporarily showing video controls');
+
+            // Remove the class to show controls
+            playerElement.classList.remove('ytp-autohide');
+
+            // Set up a flag to track if mouse is over the player
+            let isMouseOverPlayer = false;
+
+            // Add mouse enter/leave event listeners
+            const handleMouseEnter = () => {
+              isMouseOverPlayer = true;
+              logger.info('Mouse entered player area');
+            };
+
+            const handleMouseLeave = () => {
+              isMouseOverPlayer = false;
+              logger.info('Mouse left player area');
+            };
+
+            playerElement.addEventListener('mouseenter', handleMouseEnter);
+            playerElement.addEventListener('mouseleave', handleMouseLeave);
+
+            // Set a timeout to add the class back after 800ms if mouse is not over player
+            setTimeout(() => {
+              // Only hide controls if mouse is not over the player
+              if (!isMouseOverPlayer) {
+                playerElement.classList.add('ytp-autohide');
+                logger.info('Auto-hiding video controls after timeout');
+              } else {
+                logger.info('Not hiding controls because mouse is over player');
+              }
+
+              // Clean up event listeners
+              playerElement.removeEventListener('mouseenter', handleMouseEnter);
+              playerElement.removeEventListener('mouseleave', handleMouseLeave);
+            }, 1500);
+          }
+        } else {
+          logger.warn('YouTube player element not found');
+        }
       } else {
         logger.warn('Video element not found');
       }

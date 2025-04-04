@@ -11,7 +11,7 @@ import GM_fetch from '@trim21/gm-fetch';
 const logger = createLogger('GeminiClient');
 
 // Default model to use
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro-exp-03-25';
+export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
 
 // Interface for a video event with timestamp
 export interface VideoEvent {

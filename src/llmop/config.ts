@@ -2,7 +2,7 @@
 
 // Default configuration values
 export const DEFAULT_POLLING_INTERVAL_MS = 2000; // 2 seconds
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro-exp-03-25';
+export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
 
 /**
  * Get the Google Gemini API key from Violentmonkey storage

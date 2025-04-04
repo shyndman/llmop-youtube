@@ -31,6 +31,7 @@ interface CaptionTrack {
 
 import { createLogger } from './debug';
 import { extractVideoId } from './url-utils';
+import GM_fetch from '@trim21/gm-fetch';
 
 // Create a logger for this module
 const logger = createLogger('CaptionExtractor');
@@ -74,18 +75,15 @@ function parseSimpleXmlTimedText(xmlContent: string): string {
  * Extract the ytInitialPlayerResponse from the current page
  * This works by finding the script tag that contains the player response
  */
-function extractPlayerResponse(): YouTubePlayerResponse {
+async function extractVideoData(url: string): Promise<YouTubePlayerResponse> {
   try {
-    // First try to get it from the window object directly
-    // This might work on initial page load
-    if (window.ytInitialPlayerResponse) {
-      logger.info('Found ytInitialPlayerResponse in window object');
-      return window.ytInitialPlayerResponse;
-    }
+    logger.info(`Requesting ${url} for video data`);
+    const result = await GM_fetch(url, { method: 'GET' });
 
-    // If not available directly, try to extract it from the page HTML
     logger.info('Extracting ytInitialPlayerResponse from page HTML');
-    const html = document.documentElement.innerHTML;
+    const html = await result.text();
+
+    logger.log(html);
 
     const jsonStartMarker = 'var ytInitialPlayerResponse = {';
     const jsonEndMarker = '};';
@@ -96,6 +94,7 @@ function extractPlayerResponse(): YouTubePlayerResponse {
         'Could not find ytInitialPlayerResponse JSON start marker.',
       );
     }
+    logger.info(`Found start index: ${startIndex}`);
 
     const jsonStringStart = html.substring(
       startIndex + jsonStartMarker.length - 1,
@@ -106,6 +105,7 @@ function extractPlayerResponse(): YouTubePlayerResponse {
         'Could not find ytInitialPlayerResponse JSON end marker.',
       );
     }
+    logger.info(`Found end index: ${endIndex}`);
 
     const jsonString = jsonStringStart.substring(0, endIndex + 1); // Include the ending '}'
     logger.info(`Extracted potential JSON string length: ${jsonString.length}`);
@@ -130,7 +130,9 @@ export async function extractCaptions(
 
   try {
     // 1. Get the player response
-    const playerResponse = extractPlayerResponse();
+    const playerResponse = await extractVideoData(
+      `https://www.youtube.com/watch?v=${videoId}`,
+    );
     logger.info('Successfully extracted player response');
 
     // 2. Find caption tracks
