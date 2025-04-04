@@ -1,9 +1,13 @@
 // ==UserScript==
-// @name        My Script
+// @name        LLMOP Youtube
 // @namespace   Violentmonkey Scripts
-// @description This is a userscript.
-// @match       *://*/*
+// @description Summarize and timestamp YouTube videos
+// @match       https://www.youtube.com/*
+// @grant       GM_addElement
 // @grant       GM_addStyle
+// @grant       GM_xmlhttpRequest
+// @grant       GM_getValue
+// @grant       GM_setValue
 // @version     0.0.0
 // @author      process.env.AUTHOR
 // @require     https://cdn.jsdelivr.net/npm/@violentmonkey/dom@2

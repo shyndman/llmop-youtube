@@ -1,0 +1,29 @@
+/* Preflights are needed for default values of variables */
+@unocss preflights;
+
+/* Video info */
+.videoInfo {
+  @apply mt-2 text-sm font-medium text-gray-700;
+}
+
+:global([data-theme='dark']) .videoInfo {
+  @apply text-gray-300;
+}
+
+/* Summarize button */
+.summarizeButton {
+  @apply bg-red-500 text-white px-4 py-2 rounded-md mt-4 hover:bg-red-600 transition-colors;
+}
+
+.summarizeButton:disabled {
+  @apply bg-gray-400 cursor-not-allowed;
+}
+
+/* Summary container */
+.summaryContainer {
+  @apply mt-4 p-4 border border-gray-200 rounded-md bg-white;
+}
+
+:global([data-theme='dark']) .summaryContainer {
+  @apply bg-gray-800 border-gray-700 text-white;
+}
