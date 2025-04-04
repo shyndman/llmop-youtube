@@ -1363,6 +1363,11 @@
   resolved "https://registry.npmjs.org/@sindresorhus/merge-streams/-/merge-streams-2.3.0.tgz"
   integrity sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==
 
+"@trim21/gm-fetch@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@trim21/gm-fetch/-/gm-fetch-0.3.0.tgz#63c0812ed3e53420b246342d6bed24561547c7eb"
+  integrity sha512-HMZvNUX1dX9uuE0ZjZijPoy39ueNEL1ScsDsDqV4YxtH5izf532ioDhPzDZQqv78ni10BT0IOmR5Fi0GahjFzQ==
+
 "@trysound/sax@0.2.0":
   version "0.2.0"
   resolved "https://registry.npmjs.org/@trysound/sax/-/sax-0.2.0.tgz"

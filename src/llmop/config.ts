@@ -2,6 +2,7 @@
 
 // Default configuration values
 export const DEFAULT_POLLING_INTERVAL_MS = 2000; // 2 seconds
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro-exp-03-25';
 
 /**
  * Get the Google Gemini API key from Violentmonkey storage
@@ -69,4 +70,46 @@ export function getPollingIntervalSync(): number {
  */
 export async function setPollingInterval(intervalMs: number): Promise<void> {
   await GM.setValue('pollingIntervalMs', intervalMs);
+}
+
+/**
+ * Get the Gemini model name from storage
+ * @returns A promise that resolves to the model name or the default model
+ */
+export async function getGeminiModel(): Promise<string> {
+  return await GM.getValue('geminiModel', DEFAULT_GEMINI_MODEL);
+}
+
+/**
+ * Get the Gemini model name synchronously (for immediate use)
+ * @returns The model name or the default model
+ */
+export function getGeminiModelSync(): string {
+  return GM_getValue('geminiModel', DEFAULT_GEMINI_MODEL);
+}
+
+/**
+ * Set the Gemini model name in Violentmonkey storage
+ * @param model The model name to store
+ * @returns A promise that resolves when the value is set
+ */
+export async function setGeminiModel(model: string): Promise<void> {
+  await GM.setValue('geminiModel', model);
+}
+
+/**
+ * Get the Gemini temperature setting from storage
+ * @returns A promise that resolves to the temperature or the default (0.2)
+ */
+export async function getGeminiTemperature(): Promise<number> {
+  return await GM.getValue('geminiTemperature', 0.2);
+}
+
+/**
+ * Set the Gemini temperature in Violentmonkey storage
+ * @param temperature The temperature value to store (0.0 to 1.0)
+ * @returns A promise that resolves when the value is set
+ */
+export async function setGeminiTemperature(temperature: number): Promise<void> {
+  await GM.setValue('geminiTemperature', temperature);
 }

@@ -1,4 +1,4 @@
-import { createSignal, createEffect } from 'solid-js';
+import { createSignal, createEffect, For } from 'solid-js';
 import { render } from 'solid-js/web';
 import { getPanel, showToast } from '@violentmonkey/ui';
 // global CSS
@@ -6,18 +6,25 @@ import globalCss from './style.css';
 // CSS modules
 import styles, { stylesheet } from './style.module.css';
 // Import configuration
-import { getApiKey } from './config';
+import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
 // Import YouTube watcher
 import { currentVideoId, currentCaptions } from './youtube-watcher';
 // Import debug utilities
 import { createLogger } from './debug';
+// Import Gemini client
+import {
+  initGeminiClient,
+  generateTimestampedEvents,
+  VideoEvent,
+} from './gemini-client';
 
 // Create a logger for this module
 const logger = createLogger('App');
 
 function YouTubeSummarizer() {
-  const [summary, setSummary] = createSignal('');
+  const [events, setEvents] = createSignal<VideoEvent[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
 
   // Create effects to track changes to video ID and captions
   createEffect(() => {
@@ -31,10 +38,10 @@ function YouTubeSummarizer() {
     }
   });
 
-  const generateSummary = async () => {
+  const generateTimestamps = async () => {
     const currentVideo = currentVideoId();
     const captionsText = currentCaptions();
-    logger.log('Generate summary requested', {
+    logger.log('Generate timestamps requested', {
       videoId: currentVideo,
       hasCaptions: !!captionsText,
     });
@@ -46,6 +53,8 @@ function YouTubeSummarizer() {
     }
 
     setIsLoading(true);
+    setError(null);
+    setEvents([]);
     logger.log('Setting loading state', { loading: true });
 
     try {
@@ -60,12 +69,15 @@ function YouTubeSummarizer() {
           theme: 'dark',
         });
         setIsLoading(false);
+        setError(
+          'API key not configured. Please set your Gemini API key in Violentmonkey settings.',
+        );
         return;
       }
 
       // Get the captions for the current video
       const captionsText = currentCaptions();
-      logger.log('Starting summary generation', {
+      logger.log('Starting timestamp generation', {
         hasCaptions: !!captionsText,
       });
 
@@ -76,31 +88,73 @@ function YouTubeSummarizer() {
           { theme: 'dark' },
         );
         setIsLoading(false);
+        setError(
+          'No captions available for this video. Please wait a moment for captions to load.',
+        );
         return;
       }
 
-      // This is a placeholder for the actual API call
-      // In a real implementation, we would send the captions to the Gemini API
-      setTimeout(() => {
-        const captionsPreview = captionsText.substring(0, 100) + '...';
-        const summaryText = `This is a sample summary of YouTube video ID: ${currentVideo}\n\nCaptions preview: ${captionsPreview}\n\nIn a real implementation, this would call the Gemini API with your API key: ${apiKey.substring(0, 3)}...`;
-        logger.log('Summary generated', {
-          summary: summaryText.substring(0, 50) + '...',
-        });
-        setSummary(summaryText);
-        setIsLoading(false);
-        showToast('Summary generated!', { theme: 'dark' });
-      }, 1500);
-    } catch (error) {
-      logger.error('Error getting API key', error);
-      showToast('Error getting API key', { theme: 'dark' });
+      // Get Gemini configuration
+      const modelName = await getGeminiModel();
+      const temperature = await getGeminiTemperature();
+      logger.log('Using Gemini configuration', { modelName, temperature });
+
+      // Initialize the Gemini client
+      const genAI = initGeminiClient(apiKey, {
+        model: modelName,
+        temperature,
+      });
+
+      // Generate timestamped events
+      const result = await generateTimestampedEvents(
+        genAI,
+        currentVideo,
+        captionsText,
+      );
+      logger.log('Timestamps generated', result);
+
+      // Update the UI with the results
+      setEvents(result.events);
       setIsLoading(false);
+      showToast(`Found ${result.events.length} key moments in the video!`, {
+        theme: 'dark',
+      });
+    } catch (error) {
+      logger.error('Error generating timestamps', error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+      setIsLoading(false);
+      setError(`Error generating timestamps: ${errorMessage}`);
+    }
+  };
+
+  // Format seconds to MM:SS format
+  const formatTimestamp = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Handle timestamp click - seek to that position in the video
+  const seekToTimestamp = (seconds: number) => {
+    try {
+      // Get the video element
+      const videoElement = document.querySelector('video');
+      if (videoElement) {
+        videoElement.currentTime = seconds;
+        logger.info(`Seeking to timestamp: ${seconds} seconds`);
+      } else {
+        logger.warn('Video element not found');
+      }
+    } catch (error) {
+      logger.error('Error seeking to timestamp', error);
     }
   };
 
   return (
     <div>
-      <h2>LLMOP YouTube Summarizer</h2>
+      <h2>LLMOP YouTube Timestamper</h2>
       <p>Configure the API key in Violentmonkey settings.</p>
 
       {currentVideoId() && (
@@ -116,16 +170,39 @@ function YouTubeSummarizer() {
 
       <button
         class={styles.summarizeButton}
-        onClick={generateSummary}
+        onClick={generateTimestamps}
         disabled={isLoading() || !currentVideoId()}
       >
-        {isLoading() ? 'Generating...' : 'Summarize Video'}
+        {isLoading() ? 'Analyzing Video...' : 'Find Key Moments'}
       </button>
 
-      {summary() && (
-        <div class={styles.summaryContainer}>
-          <h3>Summary</h3>
-          <p>{summary()}</p>
+      {error() && (
+        <div class={styles.errorContainer}>
+          <p>{error()}</p>
+        </div>
+      )}
+
+      {events().length > 0 && (
+        <div class={styles.eventsContainer}>
+          <h3>Key Moments</h3>
+          <ul class={styles.eventsList}>
+            <For each={events()}>
+              {(event) => (
+                <li class={styles.eventItem}>
+                  <div class={styles.eventHeader}>
+                    <span class={styles.eventName}>{event.name}</span>
+                    <button
+                      class={styles.timestampButton}
+                      onClick={() => seekToTimestamp(event.timestamp)}
+                    >
+                      {formatTimestamp(event.timestamp)}
+                    </button>
+                  </div>
+                  <p class={styles.eventDescription}>{event.description}</p>
+                </li>
+              )}
+            </For>
+          </ul>
         </div>
       )}
     </div>

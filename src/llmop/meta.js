@@ -4,15 +4,17 @@
 // @description Summarize and timestamp YouTube videos
 // @match       https://www.youtube.com/*
 // @match       https://youtu.be/*
-// @run-at      document-start
+// @run-at      document-end
 // @grant       GM.getValue
 // @grant       GM.setValue
 // @grant       GM.notification
 // @grant       GM.xmlHttpRequest
+// @grant       GM.fetch
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       GM_notification
 // @grant       GM_xmlHttpRequest
+// @grant       GM_fetch
 // @version     0.0.0
 // @author      process.env.AUTHOR
 // @require     https://cdn.jsdelivr.net/npm/@violentmonkey/dom@2
