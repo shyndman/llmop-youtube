@@ -1,10 +1,10 @@
-import { createSignal, createEffect, For } from 'solid-js';
+import { createSignal, createEffect } from 'solid-js';
 import { render } from 'solid-js/web';
 import { getPanel, showToast } from '@violentmonkey/ui';
 // global CSS
 import globalCss from './style.css';
 // CSS modules
-import styles, { stylesheet } from './style.module.css';
+import { stylesheet } from './style.module.css';
 // Import configuration
 import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
 // Import YouTube watcher
@@ -21,6 +21,103 @@ import {
 // Create a logger for this module
 const logger = createLogger('App');
 
+// Interface for the data that will be passed to the UI builder
+export interface UIData {
+  videoId: string | null;
+  events: VideoEvent[];
+  isLoading: boolean;
+  error: string | null;
+  videoDuration: number;
+  captionsLength: number;
+  apiResponseTime: number;
+  modelName: string;
+  temperature: number;
+}
+
+// Helper function to format seconds to MM:SS format
+export function formatTimestamp(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Helper function to seek to a timestamp in the video
+export function seekToTimestamp(seconds: number): void {
+  try {
+    // Get the video element
+    const videoElement = document.querySelector('video');
+    if (videoElement) {
+      videoElement.currentTime = seconds;
+      logger.info(`Seeking to timestamp: ${seconds} seconds`);
+
+      // Find the YouTube player element
+      const playerElement = document.querySelector('.html5-video-player');
+      if (playerElement) {
+        // Check if it has the ytp-autohide class
+        if (playerElement.classList.contains('ytp-autohide')) {
+          logger.info('Temporarily showing video controls');
+
+          // Remove the class to show controls
+          playerElement.classList.remove('ytp-autohide');
+
+          // Set up a flag to track if mouse is over the player
+          let isMouseOverPlayer = false;
+
+          // Add mouse enter/leave event listeners
+          const handleMouseEnter = () => {
+            isMouseOverPlayer = true;
+            logger.info('Mouse entered player area');
+          };
+
+          const handleMouseLeave = () => {
+            isMouseOverPlayer = false;
+            logger.info('Mouse left player area');
+          };
+
+          playerElement.addEventListener('mouseenter', handleMouseEnter);
+          playerElement.addEventListener('mouseleave', handleMouseLeave);
+
+          // Set a timeout to add the class back after 800ms if mouse is not over player
+          setTimeout(() => {
+            // Only hide controls if mouse is not over the player
+            if (!isMouseOverPlayer) {
+              playerElement.classList.add('ytp-autohide');
+              logger.info('Auto-hiding video controls after timeout');
+            } else {
+              logger.info('Not hiding controls because mouse is over player');
+            }
+
+            // Clean up event listeners
+            playerElement.removeEventListener('mouseenter', handleMouseEnter);
+            playerElement.removeEventListener('mouseleave', handleMouseLeave);
+          }, 1500);
+        }
+      } else {
+        logger.warn('YouTube player element not found');
+      }
+    } else {
+      logger.warn('Video element not found');
+    }
+  } catch (error) {
+    logger.error('Error seeking to timestamp', error);
+  }
+}
+
+// Placeholder function for the UI builder
+// This will be implemented later by the user
+export function buildUI(data: UIData): void {
+  // For now, just log the data and show a notification
+  logger.info('UID data ready for rendering', data);
+
+  // Show a notification with the number of events found
+  if (data.events.length > 0) {
+    showToast(
+      `Found ${data.events.length} key moments in ${data.apiResponseTime}ms`,
+      { theme: 'dark' },
+    );
+  }
+}
+
 function YouTubeSummarizer() {
   const [events, setEvents] = createSignal<VideoEvent[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
@@ -28,6 +125,10 @@ function YouTubeSummarizer() {
   const [processedVideoIds, setProcessedVideoIds] = createSignal<Set<string>>(
     new Set(),
   );
+  const [videoDuration, setVideoDuration] = createSignal(0);
+  const [apiResponseTime, setApiResponseTime] = createSignal(0);
+  const [modelName, setModelName] = createSignal('');
+  const [temperature, setTemperature] = createSignal(0);
 
   // Create effects to track changes to video ID and captions
   createEffect(() => {
@@ -54,6 +155,43 @@ function YouTubeSummarizer() {
     }
   });
 
+  // Effect to get video duration
+  createEffect(() => {
+    const videoId = currentVideoId();
+    if (videoId) {
+      // Get the video element and its duration
+      const videoElement = document.querySelector('video');
+      if (videoElement) {
+        // If the duration is available, use it
+        if (videoElement.duration && !isNaN(videoElement.duration)) {
+          setVideoDuration(videoElement.duration);
+          logger.info(`Video duration: ${videoElement.duration} seconds`);
+        } else {
+          // Otherwise, set up a listener for when duration becomes available
+          const handleDurationChange = () => {
+            if (videoElement.duration && !isNaN(videoElement.duration)) {
+              setVideoDuration(videoElement.duration);
+              logger.info(
+                `Video duration updated: ${videoElement.duration} seconds`,
+              );
+              videoElement.removeEventListener(
+                'durationchange',
+                handleDurationChange,
+              );
+            }
+          };
+          videoElement.addEventListener('durationchange', handleDurationChange);
+          return () => {
+            videoElement.removeEventListener(
+              'durationchange',
+              handleDurationChange,
+            );
+          };
+        }
+      }
+    }
+  });
+
   const generateTimestamps = async (isAutomatic = false) => {
     const currentVideo = currentVideoId();
     const captionsText = currentCaptions();
@@ -72,6 +210,8 @@ function YouTubeSummarizer() {
     setError(null);
     setEvents([]);
     logger.log('Setting loading state', { loading: true });
+
+    const startTime = Date.now();
 
     try {
       // Get the API key asynchronously
@@ -111,14 +251,19 @@ function YouTubeSummarizer() {
       }
 
       // Get Gemini configuration
-      const modelName = await getGeminiModel();
-      const temperature = await getGeminiTemperature();
-      logger.log('Using Gemini configuration', { modelName, temperature });
+      const modelNameValue = await getGeminiModel();
+      const temperatureValue = await getGeminiTemperature();
+      setModelName(modelNameValue);
+      setTemperature(temperatureValue);
+      logger.log('Using Gemini configuration', {
+        model: modelNameValue,
+        temperature: temperatureValue,
+      });
 
       // Initialize the Gemini client
       const genAI = initGeminiClient(apiKey, {
-        model: modelName,
-        temperature,
+        model: modelNameValue,
+        temperature: temperatureValue,
       });
 
       // Generate timestamped events
@@ -127,18 +272,48 @@ function YouTubeSummarizer() {
         currentVideo,
         captionsText,
       );
-      logger.log('Timestamps generated', result);
+
+      // Calculate API response time
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      setApiResponseTime(responseTime);
+
+      logger.log('Timestamps generated', {
+        events: result.events,
+        responseTime: `${responseTime}ms`,
+        model: modelNameValue,
+        temperature: temperatureValue,
+      });
 
       // Update the UI with the results
       setEvents(result.events);
       setIsLoading(false);
 
-      // Only show toast for automatic generation if we found events
-      if (!isAutomatic || result.events.length > 0) {
-        showToast(`Found ${result.events.length} key moments in the video!`, {
-          theme: 'dark',
-        });
+      // Only show toast for automatic generation if we found events and it's not handled by buildUI
+      if (isAutomatic && result.events.length > 0) {
+        showToast(
+          `Found ${result.events.length} key moments in ${responseTime}ms!`,
+          {
+            theme: 'dark',
+          },
+        );
       }
+
+      // Prepare data for UI builder
+      const uiData: UIData = {
+        videoId: currentVideo,
+        events: result.events,
+        isLoading: false,
+        error: null,
+        videoDuration: videoDuration(),
+        captionsLength: captionsText.length,
+        apiResponseTime: responseTime,
+        modelName: modelNameValue,
+        temperature: temperatureValue,
+      };
+
+      // Call the UI builder function
+      buildUI(uiData);
     } catch (error) {
       logger.error('Error generating timestamps', error);
       const errorMessage =
@@ -151,131 +326,49 @@ function YouTubeSummarizer() {
 
       setIsLoading(false);
       setError(`Error generating timestamps: ${errorMessage}`);
+
+      // Calculate API response time even for errors
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      setApiResponseTime(responseTime);
     }
   };
 
-  // Format seconds to MM:SS format
-  const formatTimestamp = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+  // Create an effect to update the UI data when relevant state changes
+  createEffect(() => {
+    // Only update when we have events and are not loading
+    if (events().length > 0 && !isLoading()) {
+      const currentVideo = currentVideoId();
+      const captionsText = currentCaptions();
 
-  // Handle timestamp click - seek to that position in the video
-  const seekToTimestamp = (seconds: number) => {
-    try {
-      // Get the video element
-      const videoElement = document.querySelector('video');
-      if (videoElement) {
-        videoElement.currentTime = seconds;
-        logger.info(`Seeking to timestamp: ${seconds} seconds`);
+      if (currentVideo && captionsText) {
+        const uiData: UIData = {
+          videoId: currentVideo,
+          events: events(),
+          isLoading: isLoading(),
+          error: error(),
+          videoDuration: videoDuration(),
+          captionsLength: captionsText.length,
+          apiResponseTime: apiResponseTime(),
+          modelName: modelName(),
+          temperature: temperature(),
+        };
 
-        // Find the YouTube player element
-        const playerElement = document.querySelector('.html5-video-player');
-        if (playerElement) {
-          // Check if it has the ytp-autohide class
-          if (playerElement.classList.contains('ytp-autohide')) {
-            logger.info('Temporarily showing video controls');
-
-            // Remove the class to show controls
-            playerElement.classList.remove('ytp-autohide');
-
-            // Set up a flag to track if mouse is over the player
-            let isMouseOverPlayer = false;
-
-            // Add mouse enter/leave event listeners
-            const handleMouseEnter = () => {
-              isMouseOverPlayer = true;
-              logger.info('Mouse entered player area');
-            };
-
-            const handleMouseLeave = () => {
-              isMouseOverPlayer = false;
-              logger.info('Mouse left player area');
-            };
-
-            playerElement.addEventListener('mouseenter', handleMouseEnter);
-            playerElement.addEventListener('mouseleave', handleMouseLeave);
-
-            // Set a timeout to add the class back after 800ms if mouse is not over player
-            setTimeout(() => {
-              // Only hide controls if mouse is not over the player
-              if (!isMouseOverPlayer) {
-                playerElement.classList.add('ytp-autohide');
-                logger.info('Auto-hiding video controls after timeout');
-              } else {
-                logger.info('Not hiding controls because mouse is over player');
-              }
-
-              // Clean up event listeners
-              playerElement.removeEventListener('mouseenter', handleMouseEnter);
-              playerElement.removeEventListener('mouseleave', handleMouseLeave);
-            }, 1500);
-          }
-        } else {
-          logger.warn('YouTube player element not found');
-        }
-      } else {
-        logger.warn('Video element not found');
+        buildUI(uiData);
       }
-    } catch (error) {
-      logger.error('Error seeking to timestamp', error);
     }
-  };
+  });
 
+  // Return a minimal UI with just a button to manually trigger analysis
   return (
-    <div>
-      <h2>LLMOP YouTube Timestamper</h2>
-      <p>Configure the API key in Violentmonkey settings.</p>
-
-      {currentVideoId() && (
-        <div class={styles.videoInfo}>
-          <p>Current video: {currentVideoId()}</p>
-          {currentCaptions() ? (
-            <p>Captions: {currentCaptions()?.length} characters extracted</p>
-          ) : (
-            <p>Captions: Not available or still loading...</p>
-          )}
-        </div>
-      )}
-
+    <div style={{ display: 'none' }}>
+      {/* Hidden button that can be used for manual triggering if needed */}
       <button
-        class={styles.summarizeButton}
         onClick={() => generateTimestamps(false)}
-        disabled={isLoading() || !currentVideoId()}
+        style={{ display: 'none' }}
       >
-        {isLoading() ? 'Analyzing Video...' : 'Refresh Key Moments'}
+        Analyze Video
       </button>
-
-      {error() && (
-        <div class={styles.errorContainer}>
-          <p>{error()}</p>
-        </div>
-      )}
-
-      {events().length > 0 && (
-        <div class={styles.eventsContainer}>
-          <h3>Key Moments</h3>
-          <ul class={styles.eventsList}>
-            <For each={events()}>
-              {(event) => (
-                <li class={styles.eventItem}>
-                  <div class={styles.eventHeader}>
-                    <span class={styles.eventName}>{event.name}</span>
-                    <button
-                      class={styles.timestampButton}
-                      onClick={() => seekToTimestamp(event.timestamp)}
-                    >
-                      {formatTimestamp(event.timestamp)}
-                    </button>
-                  </div>
-                  <p class={styles.eventDescription}>{event.description}</p>
-                </li>
-              )}
-            </For>
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -283,20 +376,25 @@ function YouTubeSummarizer() {
 // Create a logger for the panel
 const panelLogger = createLogger('Panel');
 
-// Create a movable panel using @violentmonkey/ui
+// Create a panel for our component using @violentmonkey/ui
 panelLogger.log('Creating panel');
 const panel = getPanel({
   theme: 'dark',
   style: [globalCss, stylesheet].join('\n'),
 });
 
+// Make the panel minimal and hidden
 Object.assign(panel.wrapper.style, {
-  top: '10vh',
-  left: '10vw',
-  width: '400px',
+  position: 'fixed',
+  top: '0',
+  left: '0',
+  width: '0',
+  height: '0',
+  overflow: 'hidden',
+  opacity: '0',
+  pointerEvents: 'none',
 });
 
-panel.setMovable(true);
 panelLogger.log('Panel created and configured');
 
 // Render our component
@@ -310,9 +408,12 @@ createEffect(() => {
 
   if (videoId) {
     panel.show();
-    panelLogger.info(`Showing panel for video: ${videoId}`);
+    panelLogger.info(`Panel active for video: ${videoId}`);
+
+    // Show a notification when a video is detected
+    showToast(`LLMOP active on video: ${videoId}`, { theme: 'dark' });
   } else {
     panel.hide();
-    panelLogger.info('Hiding panel - not on a watch page');
+    panelLogger.info('Panel inactive - not on a watch page');
   }
 });
