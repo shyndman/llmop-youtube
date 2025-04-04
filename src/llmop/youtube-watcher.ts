@@ -2,6 +2,7 @@ import { createSignal, onCleanup } from 'solid-js';
 import { createLogger } from './debug';
 import { getPollingIntervalSync } from './config';
 import { extractCaptions } from './caption-extractor';
+import { extractVideoId } from './url-utils';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');
@@ -9,52 +10,6 @@ const logger = createLogger('YouTubeWatcher');
 // Create signals to store the current video ID and captions
 const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null);
 const [currentCaptions, setCurrentCaptions] = createSignal<string | null>(null);
-
-/**
- * Extracts the video ID from a YouTube URL
- * @param url The URL to extract from
- * @returns The video ID or null if not found
- */
-export function extractVideoId(url: string): string | null {
-  try {
-    const parsedUrl = new URL(url);
-
-    // Handle youtube.com/watch?v=VIDEO_ID format
-    if (
-      parsedUrl.hostname.includes('youtube.com') &&
-      parsedUrl.pathname === '/watch'
-    ) {
-      return parsedUrl.searchParams.get('v');
-    }
-
-    // Handle youtu.be/VIDEO_ID format
-    if (parsedUrl.hostname === 'youtu.be') {
-      // The pathname includes a leading slash, so we remove it
-      const path = parsedUrl.pathname.substring(1);
-      return path || null;
-    }
-
-    return null;
-  } catch (error) {
-    // If URL parsing fails, return null
-    logger.error('Error parsing URL', error);
-    return null;
-  }
-}
-
-/**
- * Checks if the current page is a YouTube watch page
- * @returns True if on a watch page, false otherwise
- */
-export function isWatchPage(): boolean {
-  try {
-    const currentUrl = new URL(window.location.href);
-    return currentUrl.pathname === '/watch' && currentUrl.searchParams.has('v');
-  } catch (error) {
-    logger.error('Error checking if current page is a watch page', error);
-    return false;
-  }
-}
 
 /**
  * Shows a temporary notification with the video ID using GM.notification
@@ -82,41 +37,24 @@ function showVideoIdNotification(videoId: string, isShortUrl = false): void {
  */
 function processCurrentUrl(): void {
   try {
-    const currentUrl = new URL(window.location.href);
+    const currentUrl = window.location.href;
+    const videoId = extractVideoId(currentUrl);
 
-    if (currentUrl.pathname === '/watch' && currentUrl.searchParams.has('v')) {
-      const videoId = currentUrl.searchParams.get('v');
+    if (videoId) {
       setCurrentVideoId(videoId);
       logger.info(`Detected YouTube video: ${videoId}`);
 
       // Show notification for testing
-      if (videoId) {
-        showVideoIdNotification(videoId);
-        logger.log('Showing notification for video', { videoId });
+      const isShortUrl = currentUrl.includes('youtu.be');
+      showVideoIdNotification(videoId, isShortUrl);
+      logger.log('Showing notification for video', { videoId, isShortUrl });
 
-        // Extract captions for this video
-        extractCaptionsForVideo(videoId);
-      }
-    } else if (
-      currentUrl.hostname === 'youtu.be' &&
-      currentUrl.pathname.length > 1
-    ) {
-      const videoId = currentUrl.pathname.substring(1);
-      setCurrentVideoId(videoId);
-      logger.info(`Detected YouTube video (short URL): ${videoId}`);
-
-      // Show notification for testing
-      if (videoId) {
-        showVideoIdNotification(videoId, true);
-        logger.log('Showing notification for short URL video', { videoId });
-
-        // Extract captions for this video
-        extractCaptionsForVideo(videoId);
-      }
+      // Extract captions for this video
+      extractCaptionsForVideo(videoId);
     } else {
       setCurrentVideoId(null);
       setCurrentCaptions(null);
-      logger.info('Not on a YouTube watch page', { url: currentUrl.href });
+      logger.info('Not on a YouTube watch page', { url: currentUrl });
     }
   } catch (error) {
     logger.error('Error processing URL', error);

@@ -30,7 +30,7 @@ interface CaptionTrack {
 }
 
 import { createLogger } from './debug';
-import { extractVideoId } from './youtube-watcher';
+import { extractVideoId } from './url-utils';
 
 // Create a logger for this module
 const logger = createLogger('CaptionExtractor');
