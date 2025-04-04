@@ -1,12 +1,14 @@
 import { createSignal, onCleanup } from 'solid-js';
 import { createLogger } from './debug';
 import { getPollingIntervalSync } from './config';
+import { extractCaptions } from './caption-extractor';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');
 
-// Create a signal to store the current video ID
+// Create signals to store the current video ID and captions
 const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null);
+const [currentCaptions, setCurrentCaptions] = createSignal<string | null>(null);
 
 /**
  * Extracts the video ID from a YouTube URL
@@ -91,6 +93,9 @@ function processCurrentUrl(): void {
       if (videoId) {
         showVideoIdNotification(videoId);
         logger.log('Showing notification for video', { videoId });
+
+        // Extract captions for this video
+        extractCaptionsForVideo(videoId);
       }
     } else if (
       currentUrl.hostname === 'youtu.be' &&
@@ -104,14 +109,48 @@ function processCurrentUrl(): void {
       if (videoId) {
         showVideoIdNotification(videoId, true);
         logger.log('Showing notification for short URL video', { videoId });
+
+        // Extract captions for this video
+        extractCaptionsForVideo(videoId);
       }
     } else {
       setCurrentVideoId(null);
+      setCurrentCaptions(null);
       logger.info('Not on a YouTube watch page', { url: currentUrl.href });
     }
   } catch (error) {
     logger.error('Error processing URL', error);
     setCurrentVideoId(null);
+    setCurrentCaptions(null);
+  }
+}
+
+/**
+ * Extracts captions for a specific video ID
+ * @param videoId The YouTube video ID
+ */
+async function extractCaptionsForVideo(videoId: string): Promise<void> {
+  try {
+    logger.info(`Extracting captions for video ID: ${videoId}`);
+
+    // Wait a short time for the page to fully load
+    setTimeout(async () => {
+      const result = await extractCaptions(videoId);
+
+      if (result && result.transcript) {
+        setCurrentCaptions(result.transcript);
+        logger.info(
+          `Captions extracted successfully (${result.transcript.length} chars)`,
+        );
+        logger.info(`Extraction took ${result.elapsed_time_ms}ms`);
+      } else {
+        setCurrentCaptions(null);
+        logger.warn('Failed to extract captions');
+      }
+    }, 1000); // Wait 1 second for the page to stabilize
+  } catch (error) {
+    logger.error('Error extracting captions', error);
+    setCurrentCaptions(null);
   }
 }
 
@@ -237,5 +276,5 @@ export function initYouTubeWatcher(): void {
   logger.log('YouTube watcher initialized');
 }
 
-// Export the video ID signal for use in other components
-export { currentVideoId };
+// Export the signals for use in other components
+export { currentVideoId, currentCaptions };

@@ -8,7 +8,7 @@ import styles, { stylesheet } from './style.module.css';
 // Import configuration
 import { getApiKey } from './config';
 // Import YouTube watcher
-import { currentVideoId } from './youtube-watcher';
+import { currentVideoId, currentCaptions } from './youtube-watcher';
 // Import debug utilities
 import { createLogger } from './debug';
 
@@ -18,11 +18,26 @@ const logger = createLogger('App');
 function YouTubeSummarizer() {
   const [summary, setSummary] = createSignal('');
   const [isLoading, setIsLoading] = createSignal(false);
-  const videoId = currentVideoId();
+
+  // Create effects to track changes to video ID and captions
+  createEffect(() => {
+    const videoId = currentVideoId();
+    const captions = currentCaptions();
+
+    if (videoId && captions) {
+      logger.info(
+        `Video ${videoId} has ${captions.length} characters of captions`,
+      );
+    }
+  });
 
   const generateSummary = async () => {
     const currentVideo = currentVideoId();
-    logger.log('Generate summary requested', { videoId: currentVideo });
+    const captionsText = currentCaptions();
+    logger.log('Generate summary requested', {
+      videoId: currentVideo,
+      hasCaptions: !!captionsText,
+    });
 
     if (!currentVideo) {
       logger.warn('No YouTube video detected');
@@ -48,10 +63,27 @@ function YouTubeSummarizer() {
         return;
       }
 
+      // Get the captions for the current video
+      const captionsText = currentCaptions();
+      logger.log('Starting summary generation', {
+        hasCaptions: !!captionsText,
+      });
+
+      if (!captionsText) {
+        logger.warn('No captions available for this video');
+        showToast(
+          'No captions available for this video. Please wait a moment for captions to load.',
+          { theme: 'dark' },
+        );
+        setIsLoading(false);
+        return;
+      }
+
       // This is a placeholder for the actual API call
-      logger.log('Starting summary generation');
+      // In a real implementation, we would send the captions to the Gemini API
       setTimeout(() => {
-        const summaryText = `This is a sample summary of YouTube video ID: ${currentVideo}. In a real implementation, this would call the Gemini API with your API key: ${apiKey.substring(0, 3)}...`;
+        const captionsPreview = captionsText.substring(0, 100) + '...';
+        const summaryText = `This is a sample summary of YouTube video ID: ${currentVideo}\n\nCaptions preview: ${captionsPreview}\n\nIn a real implementation, this would call the Gemini API with your API key: ${apiKey.substring(0, 3)}...`;
         logger.log('Summary generated', {
           summary: summaryText.substring(0, 50) + '...',
         });
@@ -71,12 +103,21 @@ function YouTubeSummarizer() {
       <h2>LLMOP YouTube Summarizer</h2>
       <p>Configure the API key in Violentmonkey settings.</p>
 
-      {videoId && <p class={styles.videoInfo}>Current video: {videoId}</p>}
+      {currentVideoId() && (
+        <div class={styles.videoInfo}>
+          <p>Current video: {currentVideoId()}</p>
+          {currentCaptions() ? (
+            <p>Captions: {currentCaptions()?.length} characters extracted</p>
+          ) : (
+            <p>Captions: Not available or still loading...</p>
+          )}
+        </div>
+      )}
 
       <button
         class={styles.summarizeButton}
         onClick={generateSummary}
-        disabled={isLoading() || !videoId}
+        disabled={isLoading() || !currentVideoId()}
       >
         {isLoading() ? 'Generating...' : 'Summarize Video'}
       </button>
