@@ -25,6 +25,9 @@ function YouTubeSummarizer() {
   const [events, setEvents] = createSignal<VideoEvent[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [processedVideoIds, setProcessedVideoIds] = createSignal<Set<string>>(
+    new Set(),
+  );
 
   // Create effects to track changes to video ID and captions
   createEffect(() => {
@@ -35,10 +38,23 @@ function YouTubeSummarizer() {
       logger.info(
         `Video ${videoId} has ${captions.length} characters of captions`,
       );
+
+      // Check if we've already processed this video
+      if (!processedVideoIds().has(videoId)) {
+        logger.info(`Auto-generating timestamps for video: ${videoId}`);
+        // Automatically generate timestamps when both video ID and captions are available
+        generateTimestamps(true);
+        // Add this video ID to the processed set
+        setProcessedVideoIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(videoId);
+          return newSet;
+        });
+      }
     }
   });
 
-  const generateTimestamps = async () => {
+  const generateTimestamps = async (isAutomatic = false) => {
     const currentVideo = currentVideoId();
     const captionsText = currentCaptions();
     logger.log('Generate timestamps requested', {
@@ -116,14 +132,23 @@ function YouTubeSummarizer() {
       // Update the UI with the results
       setEvents(result.events);
       setIsLoading(false);
-      showToast(`Found ${result.events.length} key moments in the video!`, {
-        theme: 'dark',
-      });
+
+      // Only show toast for automatic generation if we found events
+      if (!isAutomatic || result.events.length > 0) {
+        showToast(`Found ${result.events.length} key moments in the video!`, {
+          theme: 'dark',
+        });
+      }
     } catch (error) {
       logger.error('Error generating timestamps', error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+
+      // Only show error toast for manual generation
+      if (!isAutomatic) {
+        showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+      }
+
       setIsLoading(false);
       setError(`Error generating timestamps: ${errorMessage}`);
     }
@@ -170,10 +195,10 @@ function YouTubeSummarizer() {
 
       <button
         class={styles.summarizeButton}
-        onClick={generateTimestamps}
+        onClick={() => generateTimestamps(false)}
         disabled={isLoading() || !currentVideoId()}
       >
-        {isLoading() ? 'Analyzing Video...' : 'Find Key Moments'}
+        {isLoading() ? 'Analyzing Video...' : 'Refresh Key Moments'}
       </button>
 
       {error() && (
