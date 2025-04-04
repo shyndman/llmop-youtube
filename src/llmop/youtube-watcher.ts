@@ -11,6 +11,26 @@ const logger = createLogger('YouTubeWatcher');
 const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null);
 const [currentCaptions, setCurrentCaptions] = createSignal<string | null>(null);
 
+// Create a simple cache for captions to avoid redundant extraction
+// Map of video ID to caption text
+const captionsCache = new Map<string, string>();
+
+// Set a default cache size
+const DEFAULT_CACHE_SIZE = 10;
+
+// Get the cache size from configuration or use default
+const MAX_CACHE_SIZE = (() => {
+  try {
+    // Use GM_getValue directly to avoid TypeScript errors
+    const size = GM_getValue('captionsCacheSize', DEFAULT_CACHE_SIZE) as number;
+    logger.info(`Using captions cache size: ${size}`);
+    return size;
+  } catch (error) {
+    logger.warn('Error getting cache size from config, using default', error);
+    return DEFAULT_CACHE_SIZE;
+  }
+})();
+
 /**
  * Shows a temporary notification with the video ID using GM.notification
  * @param videoId The video ID to display
@@ -34,8 +54,9 @@ function showVideoIdNotification(videoId: string, isShortUrl = false): void {
 
 /**
  * Processes the current URL and updates the video ID if on a watch page
+ * @returns A promise that resolves when processing is complete
  */
-function processCurrentUrl(): void {
+async function processCurrentUrl(): Promise<void> {
   try {
     const currentUrl = window.location.href;
     const videoId = extractVideoId(currentUrl);
@@ -50,7 +71,7 @@ function processCurrentUrl(): void {
       logger.log('Showing notification for video', { videoId, isShortUrl });
 
       // Extract captions for this video
-      extractCaptionsForVideo(videoId);
+      await extractCaptionsForVideo(videoId);
     } else {
       setCurrentVideoId(null);
       setCurrentCaptions(null);
@@ -64,28 +85,83 @@ function processCurrentUrl(): void {
 }
 
 /**
+ * Creates a promise that resolves after the specified delay
+ * @param ms The delay in milliseconds
+ * @returns A promise that resolves after the delay
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Adds captions to the cache, maintaining the maximum cache size
+ * @param videoId The YouTube video ID
+ * @param captions The captions text
+ */
+function addToCache(videoId: string, captions: string): void {
+  // If cache is at max size, remove the oldest entry
+  if (captionsCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = captionsCache.keys().next().value as string;
+    captionsCache.delete(oldestKey);
+    logger.info(`Removed oldest cache entry for video: ${oldestKey}`);
+  }
+
+  // Add the new captions to the cache
+  captionsCache.set(videoId, captions);
+  logger.info(`Added captions to cache for video: ${videoId}`);
+}
+
+/**
+ * Gets captions from cache if available
+ * @param videoId The YouTube video ID
+ * @returns The cached captions or null if not in cache
+ */
+function getFromCache(videoId: string): string | null {
+  if (captionsCache.has(videoId)) {
+    const captions = captionsCache.get(videoId);
+    logger.info(`Using cached captions for video: ${videoId}`);
+    return captions || null;
+  }
+  return null;
+}
+
+/**
  * Extracts captions for a specific video ID
  * @param videoId The YouTube video ID
  */
 async function extractCaptionsForVideo(videoId: string): Promise<void> {
   try {
+    logger.info(`Processing captions for video ID: ${videoId}`);
+
+    // Check if captions are in the cache
+    const cachedCaptions = getFromCache(videoId);
+    if (cachedCaptions) {
+      setCurrentCaptions(cachedCaptions);
+      return;
+    }
+
     logger.info(`Extracting captions for video ID: ${videoId}`);
 
     // Wait a short time for the page to fully load
-    setTimeout(async () => {
-      const result = await extractCaptions(videoId);
+    await delay(1000); // Wait 1 second for the page to stabilize
 
-      if (result && result.transcript) {
-        setCurrentCaptions(result.transcript);
-        logger.info(
-          `Captions extracted successfully (${result.transcript.length} chars)`,
-        );
-        logger.info(`Extraction took ${result.elapsed_time_ms}ms`);
-      } else {
-        setCurrentCaptions(null);
-        logger.warn('Failed to extract captions');
-      }
-    }, 1000); // Wait 1 second for the page to stabilize
+    const result = await extractCaptions(videoId);
+
+    if (result && result.transcript) {
+      // Set the current captions
+      setCurrentCaptions(result.transcript);
+
+      // Add to cache
+      addToCache(videoId, result.transcript);
+
+      logger.info(
+        `Captions extracted successfully (${result.transcript.length} chars)`,
+      );
+      logger.info(`Extraction took ${result.elapsed_time_ms}ms`);
+    } else {
+      setCurrentCaptions(null);
+      logger.warn('Failed to extract captions');
+    }
   } catch (error) {
     logger.error('Error extracting captions', error);
     setCurrentCaptions(null);
@@ -123,7 +199,7 @@ function checkForUrlChange(): void {
     lastProcessedUrl = currentUrl;
 
     // Process the new URL
-    processCurrentUrl();
+    void processCurrentUrl();
   }
 }
 
@@ -191,7 +267,7 @@ export function initYouTubeWatcher(): void {
   // Process the initial URL
   logger.log('Processing initial URL', { url: window.location.href });
   lastProcessedUrl = window.location.href;
-  processCurrentUrl();
+  void processCurrentUrl();
 
   // Set up visibility change listener
   logger.log('Setting up visibility change listener');
@@ -214,5 +290,5 @@ export function initYouTubeWatcher(): void {
   logger.log('YouTube watcher initialized');
 }
 
-// Export the signals for use in other components
-export { currentVideoId, currentCaptions };
+// Export the signals and utility functions for use in other components
+export { currentVideoId, currentCaptions, delay };

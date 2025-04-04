@@ -8,14 +8,15 @@ import { stylesheet } from './style.module.css';
 // Import configuration
 import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
 // Import YouTube watcher
-import { currentVideoId, currentCaptions } from './youtube-watcher';
+import { currentVideoId, currentCaptions, delay } from './youtube-watcher';
 // Import debug utilities
 import { createLogger } from './debug';
 // Import Gemini client
 import {
-  initGeminiClient,
-  generateTimestampedEvents,
+  GeminiClient,
   VideoEvent,
+  VideoQuestionResponse,
+  QueryType,
 } from './gemini-client';
 
 // Create a logger for this module
@@ -25,6 +26,10 @@ const logger = createLogger('App');
 export interface UIData {
   videoId: string | null;
   events: VideoEvent[];
+  summary?: string;
+  keyPoints?: string[];
+  questionResponse?: VideoQuestionResponse;
+  queryType: QueryType;
   isLoading: boolean;
   error: string | null;
   videoDuration: number;
@@ -39,6 +44,24 @@ export function formatTimestamp(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Helper function to parse timestamp links in text and convert to HTML
+export function parseTimestampLinks(text: string): string {
+  if (!text) return '';
+
+  // Regular expression to match [text](timestamp) format
+  const linkRegex = /\[(.*?)\]\((\d+)\)/g;
+
+  // Replace all matches with HTML links
+  return text.replace(
+    linkRegex,
+    (_match, linkText: string, timestamp: string) => {
+      const seconds = parseInt(timestamp, 10);
+      const formattedTime = formatTimestamp(seconds);
+      return `<a href="#" class="timestamp-link" data-timestamp="${seconds}" title="Jump to ${formattedTime}">${linkText}</a>`;
+    },
+  );
 }
 
 // Helper function to seek to a timestamp in the video
@@ -77,8 +100,10 @@ export function seekToTimestamp(seconds: number): void {
           playerElement.addEventListener('mouseenter', handleMouseEnter);
           playerElement.addEventListener('mouseleave', handleMouseLeave);
 
-          // Set a timeout to add the class back after 800ms if mouse is not over player
-          setTimeout(() => {
+          // Set a timeout to add the class back after 1500ms if mouse is not over player
+          void (async () => {
+            await delay(1500);
+
             // Only hide controls if mouse is not over the player
             if (!isMouseOverPlayer) {
               playerElement.classList.add('ytp-autohide');
@@ -90,7 +115,7 @@ export function seekToTimestamp(seconds: number): void {
             // Clean up event listeners
             playerElement.removeEventListener('mouseenter', handleMouseEnter);
             playerElement.removeEventListener('mouseleave', handleMouseLeave);
-          }, 1500);
+          })();
         }
       } else {
         logger.warn('YouTube player element not found');
@@ -107,7 +132,15 @@ export function seekToTimestamp(seconds: number): void {
 // This will be implemented later by the user
 export function buildUI(data: UIData): void {
   // For now, just log the data and show a notification
-  logger.info('UID data ready for rendering', data);
+  logger.info('UI data ready for rendering', data);
+
+  // Process any timestamp links in the summary
+  if (data.summary) {
+    // The summary may contain timestamp links in the format [text](timestamp)
+    // These can be parsed using the parseTimestampLinks function
+    const summaryWithLinks = parseTimestampLinks(data.summary);
+    logger.info('Processed summary with timestamp links', { summaryWithLinks });
+  }
 
   // Show a notification with the number of events found
   if (data.events.length > 0) {
@@ -120,6 +153,15 @@ export function buildUI(data: UIData): void {
 
 function YouTubeSummarizer() {
   const [events, setEvents] = createSignal<VideoEvent[]>([]);
+  const [summary, setSummary] = createSignal<string>('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [keyPoints, setKeyPoints] = createSignal<string[]>([]);
+  const [questionResponse, setQuestionResponse] = createSignal<
+    VideoQuestionResponse | undefined
+  >(undefined);
+  const [queryType, setQueryType] = createSignal<QueryType>(
+    QueryType.VIDEO_ANALYSIS,
+  );
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [processedVideoIds, setProcessedVideoIds] = createSignal<Set<string>>(
@@ -129,6 +171,9 @@ function YouTubeSummarizer() {
   const [apiResponseTime, setApiResponseTime] = createSignal(0);
   const [modelName, setModelName] = createSignal('');
   const [temperature, setTemperature] = createSignal(0);
+  const [geminiClient, setGeminiClient] = createSignal<GeminiClient | null>(
+    null,
+  );
 
   // Create effects to track changes to video ID and captions
   createEffect(() => {
@@ -142,9 +187,9 @@ function YouTubeSummarizer() {
 
       // Check if we've already processed this video
       if (!processedVideoIds().has(videoId)) {
-        logger.info(`Auto-generating timestamps for video: ${videoId}`);
-        // Automatically generate timestamps when both video ID and captions are available
-        generateTimestamps(true);
+        logger.info(`Auto-generating video analysis for video: ${videoId}`);
+        // Automatically generate video analysis when both video ID and captions are available
+        void generateVideoAnalysis(true);
         // Add this video ID to the processed set
         setProcessedVideoIds((prev) => {
           const newSet = new Set(prev);
@@ -192,27 +237,8 @@ function YouTubeSummarizer() {
     }
   });
 
-  const generateTimestamps = async (isAutomatic = false) => {
-    const currentVideo = currentVideoId();
-    const captionsText = currentCaptions();
-    logger.log('Generate timestamps requested', {
-      videoId: currentVideo,
-      hasCaptions: !!captionsText,
-    });
-
-    if (!currentVideo) {
-      logger.warn('No YouTube video detected');
-      showToast('No YouTube video detected', { theme: 'dark' });
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setEvents([]);
-    logger.log('Setting loading state', { loading: true });
-
-    const startTime = Date.now();
-
+  // Helper function to initialize the Gemini client
+  const initializeClient = async () => {
     try {
       // Get the API key asynchronously
       logger.log('Getting API key');
@@ -228,12 +254,69 @@ function YouTubeSummarizer() {
         setError(
           'API key not configured. Please set your Gemini API key in Violentmonkey settings.',
         );
-        return;
+        return null;
       }
 
+      // Get Gemini configuration
+      const modelNameValue = await getGeminiModel();
+      const temperatureValue = await getGeminiTemperature();
+      setModelName(modelNameValue);
+      setTemperature(temperatureValue);
+      logger.log('Using Gemini configuration', {
+        model: modelNameValue,
+        temperature: temperatureValue,
+      });
+
+      // Initialize the Gemini client if not already initialized
+      let client = geminiClient();
+      if (!client) {
+        client = new GeminiClient(apiKey, {
+          model: modelNameValue,
+          temperature: temperatureValue,
+        });
+        setGeminiClient(client);
+      }
+
+      return client;
+    } catch (error) {
+      logger.error('Error initializing Gemini client', error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      setError(`Error initializing Gemini client: ${errorMessage}`);
+      return null;
+    }
+  };
+
+  // Generate video analysis with key events and summary
+  const generateVideoAnalysis = async (isAutomatic = false) => {
+    const currentVideo = currentVideoId();
+    const captionsText = currentCaptions();
+    logger.log('Generate video analysis requested', {
+      videoId: currentVideo,
+      hasCaptions: !!captionsText,
+    });
+
+    if (!currentVideo) {
+      logger.warn('No YouTube video detected');
+      showToast('No YouTube video detected', { theme: 'dark' });
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setEvents([]);
+    setSummary('');
+    setKeyPoints([]);
+    setQuestionResponse(undefined);
+    setQueryType(QueryType.VIDEO_ANALYSIS);
+    logger.log('Setting loading state', { loading: true });
+
+    const startTime = Date.now();
+
+    try {
       // Get the captions for the current video
       const captionsText = currentCaptions();
-      logger.log('Starting timestamp generation', {
+      logger.log('Starting video analysis', {
         hasCaptions: !!captionsText,
       });
 
@@ -250,49 +333,43 @@ function YouTubeSummarizer() {
         return;
       }
 
-      // Get Gemini configuration
-      const modelNameValue = await getGeminiModel();
-      const temperatureValue = await getGeminiTemperature();
-      setModelName(modelNameValue);
-      setTemperature(temperatureValue);
-      logger.log('Using Gemini configuration', {
-        model: modelNameValue,
-        temperature: temperatureValue,
-      });
+      // Initialize the client
+      const client = await initializeClient();
+      if (!client) {
+        setIsLoading(false);
+        return;
+      }
 
-      // Initialize the Gemini client
-      const genAI = initGeminiClient(apiKey, {
-        model: modelNameValue,
-        temperature: temperatureValue,
-      });
+      // Set the video context
+      client.setVideoContext(currentVideo, captionsText);
 
-      // Generate timestamped events
-      const result = await generateTimestampedEvents(
-        genAI,
-        currentVideo,
-        captionsText,
-      );
+      // Generate video analysis with events and summary
+      const result = await client.getVideoAnalysis();
 
       // Calculate API response time
       const endTime = Date.now();
       const responseTime = endTime - startTime;
       setApiResponseTime(responseTime);
 
-      logger.log('Timestamps generated', {
-        events: result.events,
+      logger.log('Video analysis generated', {
+        events: result.events.length,
+        summary: result.summary.substring(0, 100) + '...',
+        keyPoints: result.keyPoints,
         responseTime: `${responseTime}ms`,
-        model: modelNameValue,
-        temperature: temperatureValue,
+        model: modelName(),
+        temperature: temperature(),
       });
 
       // Update the UI with the results
       setEvents(result.events);
+      setSummary(result.summary); // Summary may contain timestamp links in the format [text](timestamp)
+      setKeyPoints(result.keyPoints);
       setIsLoading(false);
 
       // Only show toast for automatic generation if we found events and it's not handled by buildUI
       if (isAutomatic && result.events.length > 0) {
         showToast(
-          `Found ${result.events.length} key moments in ${responseTime}ms!`,
+          `Video analysis complete: ${result.events.length} key moments identified in ${responseTime}ms!`,
           {
             theme: 'dark',
           },
@@ -303,19 +380,22 @@ function YouTubeSummarizer() {
       const uiData: UIData = {
         videoId: currentVideo,
         events: result.events,
+        summary: result.summary,
+        keyPoints: result.keyPoints,
+        queryType: QueryType.VIDEO_ANALYSIS,
         isLoading: false,
         error: null,
         videoDuration: videoDuration(),
         captionsLength: captionsText.length,
         apiResponseTime: responseTime,
-        modelName: modelNameValue,
-        temperature: temperatureValue,
+        modelName: modelName(),
+        temperature: temperature(),
       };
 
       // Call the UI builder function
       buildUI(uiData);
     } catch (error) {
-      logger.error('Error generating timestamps', error);
+      logger.error('Error generating video analysis', error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
@@ -325,7 +405,7 @@ function YouTubeSummarizer() {
       }
 
       setIsLoading(false);
-      setError(`Error generating timestamps: ${errorMessage}`);
+      setError(`Error generating video analysis: ${errorMessage}`);
 
       // Calculate API response time even for errors
       const endTime = Date.now();
@@ -345,6 +425,9 @@ function YouTubeSummarizer() {
         const uiData: UIData = {
           videoId: currentVideo,
           events: events(),
+          summary: summary(),
+          questionResponse: questionResponse(),
+          queryType: queryType(),
           isLoading: isLoading(),
           error: error(),
           videoDuration: videoDuration(),
@@ -359,15 +442,135 @@ function YouTubeSummarizer() {
     }
   });
 
+  // Ask a custom question about the video
+  const askQuestion = async (question: string) => {
+    const currentVideo = currentVideoId();
+    const captionsText = currentCaptions();
+    logger.log('Ask question requested', {
+      videoId: currentVideo,
+      hasCaptions: !!captionsText,
+      question,
+    });
+
+    if (!currentVideo) {
+      logger.warn('No YouTube video detected');
+      showToast('No YouTube video detected', { theme: 'dark' });
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setEvents([]);
+    setSummary(undefined);
+    setQuestionResponse(undefined);
+    setQueryType(QueryType.CUSTOM_QUESTION);
+    logger.log('Setting loading state', { loading: true });
+
+    const startTime = Date.now();
+
+    try {
+      // Get the captions for the current video
+      const captionsText = currentCaptions();
+      if (!captionsText) {
+        logger.warn('No captions available for this video');
+        showToast(
+          'No captions available for this video. Please wait a moment for captions to load.',
+          { theme: 'dark' },
+        );
+        setIsLoading(false);
+        setError(
+          'No captions available for this video. Please wait a moment for captions to load.',
+        );
+        return;
+      }
+
+      // Initialize the client
+      const client = await initializeClient();
+      if (!client) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Set the video context
+      client.setVideoContext(currentVideo, captionsText);
+
+      // Ask the question
+      const result = await client.askQuestion(question);
+
+      // Calculate API response time
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      setApiResponseTime(responseTime);
+
+      logger.log('Question answered', {
+        answer: result.answer,
+        responseTime: `${responseTime}ms`,
+        model: modelName(),
+        temperature: temperature(),
+      });
+
+      // Update the UI with the results
+      setQuestionResponse(result);
+      setIsLoading(false);
+
+      // Show toast for question answering
+      showToast(`Answered question in ${responseTime}ms!`, {
+        theme: 'dark',
+      });
+
+      // Prepare data for UI builder
+      const uiData: UIData = {
+        videoId: currentVideo,
+        events: [],
+        questionResponse: result,
+        queryType: QueryType.CUSTOM_QUESTION,
+        isLoading: false,
+        error: null,
+        videoDuration: videoDuration(),
+        captionsLength: captionsText.length,
+        apiResponseTime: responseTime,
+        modelName: modelName(),
+        temperature: temperature(),
+      };
+
+      // Call the UI builder function
+      buildUI(uiData);
+    } catch (error) {
+      logger.error('Error answering question', error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+
+      setIsLoading(false);
+      setError(`Error answering question: ${errorMessage}`);
+
+      // Calculate API response time even for errors
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      setApiResponseTime(responseTime);
+    }
+  };
+
   // Return a minimal UI with just a button to manually trigger analysis
   return (
     <div style={{ display: 'none' }}>
-      {/* Hidden button that can be used for manual triggering if needed */}
+      {/* Hidden buttons that can be used for manual triggering if needed */}
       <button
-        onClick={() => generateTimestamps(false)}
+        onClick={() => {
+          void generateVideoAnalysis(false);
+        }}
         style={{ display: 'none' }}
       >
         Analyze Video
+      </button>
+      <button
+        onClick={() => {
+          void askQuestion('What is this video about?');
+        }}
+        style={{ display: 'none' }}
+      >
+        Ask Question
       </button>
     </div>
   );

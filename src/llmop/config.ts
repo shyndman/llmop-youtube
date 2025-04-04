@@ -3,6 +3,7 @@
 // Default configuration values
 export const DEFAULT_POLLING_INTERVAL_MS = 2000; // 2 seconds
 export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
+export const DEFAULT_CAPTIONS_CACHE_SIZE = 10; // Number of videos to cache
 
 /**
  * Get the Google Gemini API key from Violentmonkey storage
@@ -112,4 +113,29 @@ export async function getGeminiTemperature(): Promise<number> {
  */
 export async function setGeminiTemperature(temperature: number): Promise<void> {
   await GM.setValue('geminiTemperature', temperature);
+}
+
+/**
+ * Get the captions cache size from storage
+ * @returns A promise that resolves to the cache size or the default (10)
+ */
+export async function getCaptionsCacheSize(): Promise<number> {
+  return await GM.getValue('captionsCacheSize', DEFAULT_CAPTIONS_CACHE_SIZE);
+}
+
+/**
+ * Get the captions cache size synchronously (for immediate use)
+ * @returns The cache size or the default
+ */
+export function getCaptionsCacheSizeSync(): number {
+  return GM_getValue('captionsCacheSize', DEFAULT_CAPTIONS_CACHE_SIZE);
+}
+
+/**
+ * Set the captions cache size in Violentmonkey storage
+ * @param size The cache size to store
+ * @returns A promise that resolves when the value is set
+ */
+export async function setCaptionsCacheSize(size: number): Promise<void> {
+  await GM.setValue('captionsCacheSize', size);
 }
