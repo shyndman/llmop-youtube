@@ -1,5 +1,8 @@
 // Configuration module for LLMOP YouTube
 
+// Default configuration values
+export const DEFAULT_POLLING_INTERVAL_MS = 2000; // 2 seconds
+
 /**
  * Get the Google Gemini API key from Violentmonkey storage
  * @returns A promise that resolves to the API key or an empty string if not set
@@ -41,4 +44,29 @@ export async function getDebugEnabled(): Promise<boolean> {
  */
 export async function setDebugEnabled(enabled: boolean): Promise<void> {
   await GM.setValue('debugEnabled', enabled);
+}
+
+/**
+ * Get the polling interval for URL checking from storage
+ * @returns A promise that resolves to the polling interval in milliseconds
+ */
+export async function getPollingInterval(): Promise<number> {
+  return await GM.getValue('pollingIntervalMs', DEFAULT_POLLING_INTERVAL_MS);
+}
+
+/**
+ * Get the polling interval synchronously (for immediate use)
+ * @returns The polling interval in milliseconds
+ */
+export function getPollingIntervalSync(): number {
+  return GM_getValue('pollingIntervalMs', DEFAULT_POLLING_INTERVAL_MS);
+}
+
+/**
+ * Set the polling interval in Violentmonkey storage
+ * @param intervalMs The interval in milliseconds
+ * @returns A promise that resolves when the value is set
+ */
+export async function setPollingInterval(intervalMs: number): Promise<void> {
+  await GM.setValue('pollingIntervalMs', intervalMs);
 }

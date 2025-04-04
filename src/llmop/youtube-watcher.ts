@@ -1,5 +1,6 @@
 import { createSignal, onCleanup } from 'solid-js';
 import { createLogger } from './debug';
+import { getPollingIntervalSync } from './config';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');
@@ -114,29 +115,123 @@ function processCurrentUrl(): void {
   }
 }
 
+// Store the last URL we processed to avoid unnecessary work
+let lastProcessedUrl = '';
+
+// Store the interval ID for cleanup
+let pollingIntervalId: number | null = null;
+
+// Store the polling interval for restarting the timer
+let currentPollingInterval = 0;
+
+// Track whether polling is currently active
+let isPollingActive = false;
+
+/**
+ * Very lightweight check to see if the URL has changed
+ * This is called frequently, so it needs to be extremely efficient
+ */
+function checkForUrlChange(): void {
+  // Get the current URL - this is a very fast operation
+  const currentUrl = window.location.href;
+
+  // Only do work if the URL has changed
+  if (currentUrl !== lastProcessedUrl) {
+    logger.log('URL change detected', {
+      from: lastProcessedUrl || '(initial)',
+      to: currentUrl,
+    });
+
+    // Update the last processed URL
+    lastProcessedUrl = currentUrl;
+
+    // Process the new URL
+    processCurrentUrl();
+  }
+}
+
+/**
+ * Starts the URL polling
+ */
+function startPolling(): void {
+  if (isPollingActive) {
+    return; // Already polling
+  }
+
+  logger.log('Starting URL polling');
+  pollingIntervalId = window.setInterval(
+    checkForUrlChange,
+    currentPollingInterval,
+  );
+  isPollingActive = true;
+}
+
+/**
+ * Stops the URL polling
+ */
+function stopPolling(): void {
+  if (!isPollingActive) {
+    return; // Already stopped
+  }
+
+  logger.log('Stopping URL polling');
+  if (pollingIntervalId !== null) {
+    window.clearInterval(pollingIntervalId);
+    pollingIntervalId = null;
+  }
+  isPollingActive = false;
+}
+
+/**
+ * Handles visibility change events
+ */
+function handleVisibilityChange(): void {
+  if (document.hidden) {
+    // Page is now hidden, stop polling
+    logger.log('Page hidden, pausing URL polling');
+    stopPolling();
+  } else {
+    // Page is now visible, restart polling and check for URL changes immediately
+    logger.log('Page visible, resuming URL polling');
+    startPolling();
+
+    // Check for URL changes immediately in case they happened while hidden
+    checkForUrlChange();
+  }
+}
+
 /**
  * Initializes the YouTube watcher
- * Sets up listeners for URL changes and processes the initial URL
+ * Sets up a polling interval to check for URL changes
  */
 export function initYouTubeWatcher(): void {
   logger.log('Initializing YouTube watcher');
 
-  // Use onNavigate from @violentmonkey/url to handle all navigation events
-  // This handles pushState, replaceState, and popstate events automatically
-  logger.log('Setting up onNavigate listener');
-  const cleanup = onNavigate(() => {
-    logger.log('Navigation detected', { url: window.location.href });
-    processCurrentUrl();
-  });
+  // Get the polling interval from configuration
+  currentPollingInterval = getPollingIntervalSync();
+  logger.log('Using polling interval', { intervalMs: currentPollingInterval });
 
   // Process the initial URL
   logger.log('Processing initial URL', { url: window.location.href });
+  lastProcessedUrl = window.location.href;
   processCurrentUrl();
 
-  // Clean up event listeners when the component is unmounted
+  // Set up visibility change listener
+  logger.log('Setting up visibility change listener');
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  // Start polling if the page is visible
+  if (!document.hidden) {
+    startPolling();
+  } else {
+    logger.log('Page is initially hidden, polling paused');
+  }
+
+  // Clean up when the component is unmounted
   onCleanup(() => {
     logger.log('Cleaning up YouTube watcher');
-    cleanup(); // Remove the onNavigate listener
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    stopPolling();
   });
 
   logger.log('YouTube watcher initialized');
