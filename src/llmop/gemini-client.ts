@@ -6,12 +6,10 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { createLogger } from './debug';
 import GM_fetch from '@trim21/gm-fetch';
+import { DEFAULT_GEMINI_MODEL } from './config';
 
 // Create a logger for this module
 const logger = createLogger('GeminiClient');
-
-// Default model to use
-export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
 
 // Interface for a video event with timestamp
 export interface VideoEvent {
