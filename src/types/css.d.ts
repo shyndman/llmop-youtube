@@ -1,21 +1,12 @@
+// Empty CSS module definitions to support imports
+// These will be removed in the future when CSS is properly implemented
 declare module '*.module.css' {
-  /**
-   * Generated CSS for CSS modules
-   */
   export const stylesheet: string;
-  /**
-   * Exported classes
-   */
-  const classMap: {
-    [key: string]: string;
-  };
+  const classMap: Record<string, string>;
   export default classMap;
 }
 
 declare module '*.css' {
-  /**
-   * Generated CSS
-   */
   const css: string;
   export default css;
 }

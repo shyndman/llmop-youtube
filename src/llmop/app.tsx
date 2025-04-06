@@ -1,10 +1,7 @@
 import { createSignal, createEffect } from 'solid-js';
 import { render } from 'solid-js/web';
 import { getPanel, showToast } from '@violentmonkey/ui';
-// global CSS
-import globalCss from './style.css';
-// CSS modules
-import { stylesheet } from './style.module.css';
+// Styles removed
 // Import configuration
 import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
 // Import YouTube watcher
@@ -583,7 +580,7 @@ const panelLogger = createLogger('Panel');
 panelLogger.log('Creating panel');
 const panel = getPanel({
   theme: 'dark',
-  style: [globalCss, stylesheet].join('\n'),
+  // Style removed
 });
 
 // Make the panel minimal and hidden

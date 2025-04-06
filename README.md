@@ -1,16 +1,16 @@
 # llmop-youtube
 
-This is a userscript initiated from [@violentmonkey/generator-userscript](https://github.com/violentmonkey/generator-userscript).
+LLM Omnipresent, for Youtube.
 
 ## Development
 
 ``` sh
 # Compile and watch
-$ npm run dev
+$ yarn dev
 
 # Build script
-$ npm run build
+$ yarn build
 
 # Lint
-$ npm run lint
+$ yarn lint
 ```

@@ -6,7 +6,7 @@ import replacePlugin from '@rollup/plugin-replace';
 import { isAbsolute, relative, resolve } from 'path';
 import { readPackageUp } from 'read-package-up';
 import { defineConfig } from 'rollup';
-import postcssPlugin from 'rollup-plugin-postcss';
+
 import userscript from 'rollup-plugin-userscript';
 
 const { packageJson } = await readPackageUp();
@@ -18,10 +18,6 @@ export default defineConfig(
   }).map(([name, entry]) => ({
     input: entry,
     plugins: [
-      postcssPlugin({
-        inject: false,
-        minimize: true,
-      }),
       babelPlugin({
         // import helpers from '@babel/runtime'
         babelHelpers: 'runtime',
