@@ -4,7 +4,7 @@ import { getPollingIntervalSync } from './config';
 import { extractCaptions } from './caption-extractor';
 import { extractVideoId } from './url-utils';
 import { parseTimeString } from './time-utils';
-import { VideoEvent } from './gemini-client';
+import { VideoEvent } from './llm';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');
