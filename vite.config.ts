@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
-import { readPackageUp } from 'read-package-up';
+import fs from 'fs';
+import path from 'path';
 
 // Read package.json for author information
-const { packageJson } = await readPackageUp();
+const packageJson = JSON.parse(fs.readFileSync(path.resolve('./package.json'), 'utf-8'));
 
 export default defineConfig({
   plugins: [
@@ -18,7 +19,7 @@ export default defineConfig({
           'https://youtu.be/*'
         ],
         'run-at': 'document-end',
-        author: packageJson.author.name,
+        author: packageJson.author,
       },
       build: {
         fileName: 'llmop.user.js',
