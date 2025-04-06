@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../debug';
+import { Client } from 'langsmith/client';
 
 // Create a logger for this module
 const logger = createLogger('LangSmithConfig');
@@ -13,6 +14,9 @@ export const DEFAULT_LANGSMITH_TRACING = false;
 export const DEFAULT_LANGSMITH_ENDPOINT = 'https://api.smith.langchain.com';
 export const DEFAULT_LANGSMITH_PROJECT = 'llmop-youtube';
 export const DEFAULT_LANGSMITH_SAMPLING_RATE = 0.1; // 10% sampling rate to stay within limits
+
+// LangSmith client instance
+let langsmithClient: Client | null = null;
 
 /**
  * Get the LangSmith API key from Violentmonkey storage
@@ -144,39 +148,57 @@ export async function shouldTraceRequest(): Promise<boolean> {
 }
 
 /**
- * Configure LangSmith environment variables for the current session
- * This should be called early in the application lifecycle
+ * Get LangSmith configuration for the current session
+ * @returns Configuration object for LangSmith
  */
-export async function configureLangSmithEnvironment(): Promise<void> {
+export async function getLangSmithConfig(): Promise<{
+  tracing: boolean;
+  apiKey: string;
+  endpoint: string;
+  project: string;
+}> {
+  const tracingEnabled = await getLangSmithTracingEnabled();
+  const apiKey = await getLangSmithApiKey();
+  const endpoint = await getLangSmithEndpoint();
+  const project = await getLangSmithProject();
+
+  return {
+    tracing: tracingEnabled && !!apiKey,
+    apiKey: apiKey || '',
+    endpoint,
+    project,
+  };
+}
+
+/**
+ * Get or create a LangSmith client instance
+ * @returns A promise that resolves to a LangSmith client or null if not configured
+ */
+export async function getLangSmithClient(): Promise<Client | null> {
+  // If we already have a client, return it
+  if (langsmithClient) {
+    return langsmithClient;
+  }
+
+  // Get the configuration
+  const config = await getLangSmithConfig();
+
+  // If tracing is not enabled or API key is not set, return null
+  if (!config.tracing) {
+    return null;
+  }
+
   try {
-    const tracingEnabled = await getLangSmithTracingEnabled();
-    const apiKey = await getLangSmithApiKey();
-    const endpoint = await getLangSmithEndpoint();
-    const project = await getLangSmithProject();
+    // Create a new client
+    langsmithClient = new Client({
+      apiKey: config.apiKey,
+      apiUrl: config.endpoint,
+    });
 
-    // Only set environment variables if tracing is enabled and API key is set
-    if (tracingEnabled && apiKey) {
-      // Set environment variables for LangSmith
-      process.env.LANGSMITH_TRACING = 'true';
-      process.env.LANGSMITH_API_KEY = apiKey;
-      process.env.LANGSMITH_ENDPOINT = endpoint;
-      process.env.LANGSMITH_PROJECT = project;
-
-      logger.info('LangSmith environment configured successfully');
-    } else {
-      // Clear environment variables if tracing is disabled
-      process.env.LANGSMITH_TRACING = 'false';
-      delete process.env.LANGSMITH_API_KEY;
-      delete process.env.LANGSMITH_ENDPOINT;
-      delete process.env.LANGSMITH_PROJECT;
-
-      if (!tracingEnabled) {
-        logger.info('LangSmith tracing is disabled');
-      } else if (!apiKey) {
-        logger.warn('LangSmith API key is not set, tracing will be disabled');
-      }
-    }
+    logger.info('LangSmith client created successfully');
+    return langsmithClient;
   } catch (error) {
-    logger.error('Error configuring LangSmith environment', error);
+    logger.error('Error creating LangSmith client', error);
+    return null;
   }
 }

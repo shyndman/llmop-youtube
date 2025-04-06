@@ -16,9 +16,9 @@ import {
 } from './schemas';
 import {
   shouldTraceRequest,
-  configureLangSmithEnvironment,
-  getLangSmithApiKey,
+  getLangSmithConfig,
   getLangSmithTracingEnabled,
+  getLangSmithClient,
 } from './langsmith-config';
 
 // Create a logger for this module
@@ -69,7 +69,7 @@ export class LangChainClient {
       // Store the options
       this.options = { ...DEFAULT_OPTIONS, ...options };
 
-      // Configure LangSmith environment if tracing is enabled
+      // Configure LangSmith if tracing is enabled
       void this.configureLangSmith();
 
       // Create the LangChain model
@@ -101,22 +101,23 @@ export class LangChainClient {
    */
   private async configureLangSmith(): Promise<void> {
     try {
-      // Check if LangSmith tracing is enabled
-      const tracingEnabled = await getLangSmithTracingEnabled();
+      // Get LangSmith configuration
+      const config = await getLangSmithConfig();
 
-      if (tracingEnabled) {
-        // Get the LangSmith API key
-        const langsmithApiKey = await getLangSmithApiKey();
-
-        if (langsmithApiKey) {
-          // Configure the LangSmith environment
-          await configureLangSmithEnvironment();
+      if (config.tracing) {
+        // Initialize the LangSmith client
+        const client = await getLangSmithClient();
+        if (client) {
           logger.info('LangSmith tracing configured successfully');
+        } else {
+          logger.warn('Failed to initialize LangSmith client');
+        }
+      } else {
+        if (!(await getLangSmithTracingEnabled())) {
+          logger.info('LangSmith tracing is disabled');
         } else {
           logger.warn('LangSmith API key not set, tracing will be disabled');
         }
-      } else {
-        logger.info('LangSmith tracing is disabled');
       }
     } catch (error) {
       logger.error('Error configuring LangSmith', error);
@@ -165,9 +166,11 @@ export class LangChainClient {
       // Check if this request should be traced with LangSmith
       const shouldTrace = await shouldTraceRequest();
       if (shouldTrace) {
-        // Configure LangSmith environment for this request
-        await configureLangSmithEnvironment();
-        logger.info('LangSmith tracing enabled for this request');
+        // Get LangSmith client for this request
+        const client = await getLangSmithClient();
+        if (client) {
+          logger.info('LangSmith tracing enabled for this request');
+        }
       }
 
       logger.info('Sending request to LLM');
@@ -219,9 +222,11 @@ export class LangChainClient {
       // Check if this request should be traced with LangSmith
       const shouldTrace = await shouldTraceRequest();
       if (shouldTrace) {
-        // Configure LangSmith environment for this request
-        await configureLangSmithEnvironment();
-        logger.info('LangSmith tracing enabled for this request');
+        // Get LangSmith client for this request
+        const client = await getLangSmithClient();
+        if (client) {
+          logger.info('LangSmith tracing enabled for this request');
+        }
       }
 
       logger.info('Sending request to LLM');
