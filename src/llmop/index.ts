@@ -1,4 +1,4 @@
-import './meta.js?userscript-metadata';
+// Metadata is now handled by vite-plugin-monkey
 import { initYouTubeWatcher } from './youtube-watcher';
 import { initDebug, log } from './debug';
 import './app';
