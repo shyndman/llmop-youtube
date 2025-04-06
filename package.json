@@ -14,7 +14,9 @@
     "clean": "del-cli dist",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "ci": "run-s lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ci": "run-s lint test",
     "build:js": "rollup -c",
     "build": "cross-env NODE_ENV=production run-s ci clean build:js"
   },
@@ -43,6 +45,7 @@
     "@typescript-eslint/eslint-plugin": "^8.18.1",
     "@typescript-eslint/parser": "^8.18.1",
     "@violentmonkey/types": "^0.2.0",
+    "@vitest/browser": "^3.1.1",
     "autoprefixer": "^10.4.20",
     "babel-preset-solid": "^1.9.3",
     "commander": "^13",
@@ -52,6 +55,7 @@
     "eslint-config-prettier": "^10",
     "globals": "^16",
     "husky": "^9.1.7",
+    "jsdom": "^26.0.0",
     "lint-staged": "^15.2.11",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.4.49",
@@ -64,7 +68,8 @@
     "rollup-plugin-userscript": "^0.3.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.18.1"
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^3.1.1"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
