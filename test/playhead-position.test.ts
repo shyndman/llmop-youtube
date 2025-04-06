@@ -11,7 +11,7 @@ import {
   currentEvents,
   setVideoEvents,
 } from '../src/llmop/youtube-watcher';
-import { VideoEvent } from '../src/llmop/gemini-client';
+import { VideoEvent } from '../src/llmop/llm/schemas';
 
 // Mock the solid-js createEffect and createSignal functions
 vi.mock('solid-js', () => ({
@@ -61,10 +61,30 @@ function setMockPlayheadPosition(position: number): void {
 describe('YouTube Watcher', () => {
   // Create some test events for testing
   const testEvents: VideoEvent[] = [
-    new VideoEvent('Introduction', 'The video begins with an introduction', 0),
-    new VideoEvent('First point', 'The speaker makes their first point', 30),
-    new VideoEvent('Second point', 'The speaker makes their second point', 60),
-    new VideoEvent('Conclusion', 'The video concludes with a summary', 90),
+    {
+      name: 'Introduction',
+      description: 'The video begins with an introduction',
+      timestamp: 0,
+      duration: 30,
+    },
+    {
+      name: 'First point',
+      description: 'The speaker makes their first point',
+      timestamp: 30,
+      duration: 30,
+    },
+    {
+      name: 'Second point',
+      description: 'The speaker makes their second point',
+      timestamp: 60,
+      duration: 30,
+    },
+    {
+      name: 'Conclusion',
+      description: 'The video concludes with a summary',
+      timestamp: 90,
+      duration: 0,
+    },
   ];
 
   beforeEach(() => {

@@ -16,12 +16,8 @@ import {
 // Import debug utilities
 import { createLogger } from './debug';
 // Import Gemini client
-import {
-  GeminiClient,
-  VideoEvent,
-  VideoQuestionResponse,
-  QueryType,
-} from './gemini-client';
+import { GeminiClient, QueryType } from './llm/gemini-client';
+import { VideoEvent, VideoQuestionResponse } from './llm/schemas';
 
 // Create a logger for this module
 const logger = createLogger('App');
