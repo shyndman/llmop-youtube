@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from '../debug';
-import { Client } from 'langsmith/client';
+import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 
 // Create a logger for this module
 const logger = createLogger('LangSmithConfig');
@@ -15,8 +15,8 @@ export const DEFAULT_LANGSMITH_ENDPOINT = 'https://api.smith.langchain.com';
 export const DEFAULT_LANGSMITH_PROJECT = 'llmop-youtube';
 export const DEFAULT_LANGSMITH_SAMPLING_RATE = 0.1; // 10% sampling rate to stay within limits
 
-// LangSmith client instance
-let langsmithClient: Client | null = null;
+// LangChain tracer instance
+let langChainTracer: LangChainTracer | null = null;
 
 /**
  * Get the LangSmith API key from Violentmonkey storage
@@ -171,13 +171,13 @@ export async function getLangSmithConfig(): Promise<{
 }
 
 /**
- * Get or create a LangSmith client instance
- * @returns A promise that resolves to a LangSmith client or null if not configured
+ * Get or create a LangChain tracer instance for LangSmith
+ * @returns A promise that resolves to a LangChainTracer or null if not configured
  */
-export async function getLangSmithClient(): Promise<Client | null> {
-  // If we already have a client, return it
-  if (langsmithClient) {
-    return langsmithClient;
+export async function getLangChainTracer(): Promise<LangChainTracer | null> {
+  // If we already have a tracer, return it
+  if (langChainTracer) {
+    return langChainTracer;
   }
 
   // Get the configuration
@@ -189,16 +189,59 @@ export async function getLangSmithClient(): Promise<Client | null> {
   }
 
   try {
-    // Create a new client
-    langsmithClient = new Client({
-      apiKey: config.apiKey,
-      apiUrl: config.endpoint,
+    // Create a new LangChain tracer
+    langChainTracer = new LangChainTracer({
+      projectName: config.project,
     });
 
-    logger.info('LangSmith client created successfully');
-    return langsmithClient;
+    // Set environment variables for the tracer
+    // These will be picked up by LangChain.js
+    globalThis.LANGCHAIN_TRACING = 'true';
+    globalThis.LANGCHAIN_API_KEY = config.apiKey;
+    globalThis.LANGCHAIN_ENDPOINT = config.endpoint;
+    globalThis.LANGCHAIN_PROJECT = config.project;
+
+    logger.info('LangChain tracer created successfully');
+    return langChainTracer;
   } catch (error) {
-    logger.error('Error creating LangSmith client', error);
+    logger.error('Error creating LangChain tracer', error);
     return null;
+  }
+}
+
+/**
+ * Set up LangSmith environment for tracing
+ * This should be called early in the application lifecycle
+ */
+export async function setupLangSmithEnvironment(): Promise<void> {
+  try {
+    const config = await getLangSmithConfig();
+
+    if (config.tracing) {
+      // Set global variables for LangChain.js to use
+      globalThis.LANGCHAIN_TRACING = 'true';
+      globalThis.LANGCHAIN_API_KEY = config.apiKey;
+      globalThis.LANGCHAIN_ENDPOINT = config.endpoint;
+      globalThis.LANGCHAIN_PROJECT = config.project;
+
+      // For better performance in browser environments
+      globalThis.LANGCHAIN_CALLBACKS_BACKGROUND = 'true';
+
+      logger.info('LangSmith environment configured successfully');
+    } else {
+      // Clear environment variables if tracing is disabled
+      globalThis.LANGCHAIN_TRACING = 'false';
+      delete globalThis.LANGCHAIN_API_KEY;
+      delete globalThis.LANGCHAIN_ENDPOINT;
+      delete globalThis.LANGCHAIN_PROJECT;
+
+      if (!(await getLangSmithTracingEnabled())) {
+        logger.info('LangSmith tracing is disabled');
+      } else if (!config.apiKey) {
+        logger.warn('LangSmith API key not set, tracing will be disabled');
+      }
+    }
+  } catch (error) {
+    logger.error('Error setting up LangSmith environment', error);
   }
 }
