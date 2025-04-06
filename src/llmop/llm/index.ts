@@ -5,3 +5,4 @@
 
 export * from './langchain-client';
 export * from './schemas';
+export * from './langsmith-config';

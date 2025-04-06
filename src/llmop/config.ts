@@ -5,6 +5,8 @@ export const DEFAULT_POLLING_INTERVAL_MS = 2000; // 2 seconds
 export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
 export const DEFAULT_CAPTIONS_CACHE_SIZE = 10; // Number of videos to cache
 
+// LangSmith configuration defaults are in langsmith-config.ts
+
 /**
  * Get the Google Gemini API key from Violentmonkey storage
  * @returns A promise that resolves to the API key or an empty string if not set

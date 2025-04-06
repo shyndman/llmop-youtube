@@ -14,6 +14,12 @@ import {
   VideoAnalysisResponse,
   VideoQuestionResponse,
 } from './schemas';
+import {
+  shouldTraceRequest,
+  configureLangSmithEnvironment,
+  getLangSmithApiKey,
+  getLangSmithTracingEnabled,
+} from './langsmith-config';
 
 // Create a logger for this module
 const logger = createLogger('LangChainClient');
@@ -63,6 +69,9 @@ export class LangChainClient {
       // Store the options
       this.options = { ...DEFAULT_OPTIONS, ...options };
 
+      // Configure LangSmith environment if tracing is enabled
+      void this.configureLangSmith();
+
       // Create the LangChain model
       this.model = new ChatGoogleGenerativeAI({
         apiKey,
@@ -83,6 +92,34 @@ export class LangChainClient {
     } catch (error) {
       logger.error('Error initializing LangChain client', error);
       throw new Error(`Failed to initialize LangChain client: ${error}`);
+    }
+  }
+
+  /**
+   * Configure LangSmith for tracing
+   * @private
+   */
+  private async configureLangSmith(): Promise<void> {
+    try {
+      // Check if LangSmith tracing is enabled
+      const tracingEnabled = await getLangSmithTracingEnabled();
+
+      if (tracingEnabled) {
+        // Get the LangSmith API key
+        const langsmithApiKey = await getLangSmithApiKey();
+
+        if (langsmithApiKey) {
+          // Configure the LangSmith environment
+          await configureLangSmithEnvironment();
+          logger.info('LangSmith tracing configured successfully');
+        } else {
+          logger.warn('LangSmith API key not set, tracing will be disabled');
+        }
+      } else {
+        logger.info('LangSmith tracing is disabled');
+      }
+    } catch (error) {
+      logger.error('Error configuring LangSmith', error);
     }
   }
 
@@ -124,6 +161,14 @@ export class LangChainClient {
 
       // Simple user prompt since captions are in the system prompt
       const userPrompt = `Please analyze this video and provide key events and a summary.`;
+
+      // Check if this request should be traced with LangSmith
+      const shouldTrace = await shouldTraceRequest();
+      if (shouldTrace) {
+        // Configure LangSmith environment for this request
+        await configureLangSmithEnvironment();
+        logger.info('LangSmith tracing enabled for this request');
+      }
 
       logger.info('Sending request to LLM');
       const startTime = Date.now();
@@ -170,6 +215,14 @@ export class LangChainClient {
 
       // Just pass the question as the user prompt since captions are in the system prompt
       const userPrompt = `${question}`;
+
+      // Check if this request should be traced with LangSmith
+      const shouldTrace = await shouldTraceRequest();
+      if (shouldTrace) {
+        // Configure LangSmith environment for this request
+        await configureLangSmithEnvironment();
+        logger.info('LangSmith tracing enabled for this request');
+      }
 
       logger.info('Sending request to LLM');
       const startTime = Date.now();
