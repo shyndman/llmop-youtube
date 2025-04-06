@@ -292,20 +292,8 @@ ${this.captions}
         response.text,
       ) as VideoAnalysisResponse;
 
-      // Validate the response
-      if (
-        !structuredOutput ||
-        !structuredOutput.events ||
-        !Array.isArray(structuredOutput.events) ||
-        !structuredOutput.summary ||
-        !structuredOutput.keyPoints
-      ) {
-        logger.error(
-          'Invalid response format from Gemini API',
-          structuredOutput,
-        );
-        throw new Error('Invalid response format from Gemini API');
-      }
+      // Log the response for debugging
+      logger.info('Received structured output from Gemini API');
 
       // Sort events by timestamp (ascending)
       structuredOutput.events.sort((a, b) => a.timestamp - b.timestamp);
@@ -359,14 +347,8 @@ ${this.captions}
         response.text,
       ) as VideoQuestionResponse;
 
-      // Validate the response
-      if (!structuredOutput || !structuredOutput.answer) {
-        logger.error(
-          'Invalid response format from Gemini API',
-          structuredOutput,
-        );
-        throw new Error('Invalid response format from Gemini API');
-      }
+      // Log the response for debugging
+      logger.info('Received question answer from Gemini API');
 
       logger.info('Successfully generated answer to question');
       return structuredOutput;

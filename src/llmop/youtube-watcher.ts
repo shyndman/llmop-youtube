@@ -26,15 +26,10 @@ const DEFAULT_CACHE_SIZE = 10;
 
 // Get the cache size from configuration or use default
 const MAX_CACHE_SIZE = (() => {
-  try {
-    // Use GM_getValue directly to avoid TypeScript errors
-    const size = GM_getValue('captionsCacheSize', DEFAULT_CACHE_SIZE) as number;
-    logger.info(`Using captions cache size: ${size}`);
-    return size;
-  } catch (error) {
-    logger.warn('Error getting cache size from config, using default', error);
-    return DEFAULT_CACHE_SIZE;
-  }
+  // Use GM_getValue directly to avoid TypeScript errors
+  const size = GM_getValue('captionsCacheSize', DEFAULT_CACHE_SIZE) as number;
+  logger.info(`Using captions cache size: ${size}`);
+  return size;
 })();
 
 /**
@@ -132,7 +127,7 @@ function getFromCache(videoId: string): string | null {
   if (captionsCache.has(videoId)) {
     const captions = captionsCache.get(videoId);
     logger.info(`Using cached captions for video: ${videoId}`);
-    return captions || null;
+    return captions!;
   }
   return null;
 }
@@ -159,21 +154,16 @@ async function extractCaptionsForVideo(videoId: string): Promise<void> {
 
     const result = await extractCaptions(videoId);
 
-    if (result && result.transcript) {
-      // Set the current captions
-      setCurrentCaptions(result.transcript);
+    // Set the current captions
+    setCurrentCaptions(result.transcript);
 
-      // Add to cache
-      addToCache(videoId, result.transcript);
+    // Add to cache
+    addToCache(videoId, result.transcript);
 
-      logger.info(
-        `Captions extracted successfully (${result.transcript.length} chars)`,
-      );
-      logger.info(`Extraction took ${result.elapsed_time_ms}ms`);
-    } else {
-      setCurrentCaptions(null);
-      logger.warn('Failed to extract captions');
-    }
+    logger.info(
+      `Captions extracted successfully (${result.transcript.length} chars)`,
+    );
+    logger.info(`Extraction took ${result.elapsed_time_ms}ms`);
   } catch (error) {
     logger.error('Error extracting captions', error);
     setCurrentCaptions(null);

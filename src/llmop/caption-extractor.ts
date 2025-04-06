@@ -190,8 +190,8 @@ export async function extractCaptions(
       }
     }
 
-    if (!bestTrack || !bestTrack.baseUrl) {
-      logger.info('No suitable caption track with baseUrl found');
+    if (!bestTrack) {
+      logger.info('No suitable caption track found');
       GM.notification({
         title: 'LLMOP YouTube',
         text: 'Could not find a usable caption track.',

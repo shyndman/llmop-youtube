@@ -34,7 +34,6 @@ export function extractVideoId(url: string): string | null {
 
     return null;
   } catch (error) {
-    // If URL parsing fails, return null
     logger.error('Error parsing URL', error);
     return null;
   }
