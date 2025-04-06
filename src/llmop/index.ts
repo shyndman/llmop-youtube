@@ -3,6 +3,9 @@ import { initYouTubeWatcher } from './youtube-watcher';
 import { initDebug, log } from './debug';
 import './app';
 
+// Export modules for internal use
+export * from './llm';
+
 // Initialize the debug system first
 initDebug().then(() => {
   log('LLMOP YouTube initializing');

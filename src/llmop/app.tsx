@@ -15,13 +15,13 @@ import {
 } from './youtube-watcher';
 // Import debug utilities
 import { createLogger } from './debug';
-// Import Gemini client
+// Import LLM client
 import {
-  GeminiClient,
+  LangChainClient,
   VideoEvent,
   VideoQuestionResponse,
   QueryType,
-} from './gemini-client';
+} from './llm';
 
 // Create a logger for this module
 const logger = createLogger('App');
@@ -277,9 +277,9 @@ function YouTubeSummarizer() {
   const [videoDescription, setVideoDescription] = createSignal<string>('');
 
   // Create a promise that resolves when the client is initialized
-  let clientInitPromiseResolve: (client: GeminiClient) => void;
+  let clientInitPromiseResolve: (client: LangChainClient) => void;
   let clientInitPromiseReject: (error: Error) => void;
-  const clientInitPromise = new Promise<GeminiClient>((resolve, reject) => {
+  const clientInitPromise = new Promise<LangChainClient>((resolve, reject) => {
     clientInitPromiseResolve = resolve;
     clientInitPromiseReject = reject;
   });
@@ -316,19 +316,19 @@ function YouTubeSummarizer() {
           try {
             // Wait for the client to be initialized
             const client = await clientInitPromise;
-            logger.info('Gemini client is ready');
+            logger.info('LangChain client is ready');
 
             // Set the video context with the extracted metadata
             const title = videoTitle();
             const description = videoDescription();
             client.setVideoContext(videoId, captions, title, description);
-            logger.info('Video context set on Gemini client');
+            logger.info('Video context set on LangChain client');
 
             // Automatically generate video analysis when client is ready
             void generateVideoAnalysis(true);
           } catch (error) {
-            logger.error('Failed to initialize Gemini client', error);
-            showToast('Error: Failed to initialize Gemini client', {
+            logger.error('Failed to initialize LangChain client', error);
+            showToast('Error: Failed to initialize LangChain client', {
               theme: 'dark',
             });
           }
@@ -453,20 +453,20 @@ function YouTubeSummarizer() {
           temperature: temperatureValue,
         });
 
-        // Initialize the Gemini client
-        const client = new GeminiClient(apiKey, {
+        // Initialize the LangChain client
+        const client = new LangChainClient(apiKey, {
           model: modelNameValue,
           temperature: temperatureValue,
         });
-        logger.info('Gemini client initialized');
+        logger.info('LangChain client initialized');
 
         // Resolve the promise with the initialized client
         clientInitPromiseResolve(client);
       } catch (error) {
-        logger.error('Error initializing Gemini client', error);
+        logger.error('Error initializing LangChain client', error);
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        setError(`Error initializing Gemini client: ${errorMessage}`);
+        setError(`Error initializing LangChain client: ${errorMessage}`);
 
         // Reject the promise with the error
         clientInitPromiseReject(
@@ -529,7 +529,7 @@ function YouTubeSummarizer() {
         const client = await clientInitPromise;
 
         // The video context is already set when we navigate to the page
-        logger.log('Using Gemini client with existing video context');
+        logger.log('Using LangChain client with existing video context');
 
         // Generate video analysis with events and summary
         const result = await client.getVideoAnalysis();
@@ -693,7 +693,7 @@ function YouTubeSummarizer() {
         const client = await clientInitPromise;
 
         // The video context is already set when we navigate to the page
-        logger.log('Using Gemini client with existing video context');
+        logger.log('Using LangChain client with existing video context');
 
         // Ask the question
         const result = await client.askQuestion(question);
