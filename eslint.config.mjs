@@ -7,7 +7,18 @@ import ts from 'typescript-eslint';
 export default [
 	js.configs.recommended,
 	...ts.configs.recommended,
+	{
+		"rules": {
+			"@typescript-eslint/no-unused-vars": [
+				"error",
+				{
+					"args": "all",
+					"argsIgnorePattern": "^_",
+					"varsIgnorePattern": "^_",
 
+				}]
+		}
+	},
 	prettier,
 	{
 		languageOptions: {

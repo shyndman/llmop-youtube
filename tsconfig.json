@@ -8,6 +8,10 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "skipLibCheck": true,
+    "types": [
+      "vitest/globals",
+      "vitest/importMeta"
+    ],
     "lib": [
       "DOM",
       "ES6",
