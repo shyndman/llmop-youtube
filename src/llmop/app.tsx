@@ -1,4 +1,4 @@
-import { createSignal, createEffect } from 'solid-js';
+import { createSignal, createEffect, createMemo } from 'solid-js';
 import { render } from 'solid-js/web';
 import { getPanel, showToast } from '@violentmonkey/ui';
 // Styles removed
@@ -9,7 +9,7 @@ import {
   currentVideoId,
   currentCaptions,
   currentPlayheadPosition,
-  currentActiveEvent,
+  currentEvents,
   setVideoEvents,
   delay,
 } from './youtube-watcher';
@@ -25,6 +25,63 @@ import {
 
 // Create a logger for this module
 const logger = createLogger('App');
+
+/**
+ * Create a derived signal that returns the current active event based on playhead position
+ * Returns null if no event is active or if not on a watch page
+ */
+const currentActiveEvent = createMemo(() => {
+  const playheadPosition = currentPlayheadPosition();
+  const events = currentEvents();
+
+  // If not on a watch page or no playhead position, return null
+  if (playheadPosition === null || events.length === 0) {
+    return null;
+  }
+
+  // Find the event whose timestamp is closest to but not after the current playhead position
+  // This assumes events are sorted by timestamp (which they should be)
+  let activeEvent: VideoEvent | null = null;
+  let closestTimeDiff = Number.MAX_SAFE_INTEGER;
+
+  for (const event of events) {
+    // Calculate how far the event is from the current position
+    const timeDiff = playheadPosition - event.timestamp;
+
+    // Only consider events that have already happened (timeDiff >= 0)
+    // and are closer than the current closest event
+    if (timeDiff >= 0 && timeDiff < closestTimeDiff) {
+      closestTimeDiff = timeDiff;
+      activeEvent = event;
+    }
+  }
+
+  return activeEvent;
+});
+
+/**
+ * Log a message every 30 seconds of playback
+ */
+createEffect(() => {
+  const position = currentPlayheadPosition();
+  const videoId = currentVideoId();
+
+  if (position !== null && videoId) {
+    // Log every 30 seconds
+    if (position > 0 && position % 30 < 1) {
+      logger.info(`Video playback at ${position} seconds`, { videoId });
+
+      // Also log the current active event if there is one
+      const activeEvent = currentActiveEvent();
+      if (activeEvent) {
+        logger.info(`Current active event: ${activeEvent.name}`, {
+          timestamp: activeEvent.timestamp,
+          description: activeEvent.description,
+        });
+      }
+    }
+  }
+});
 
 // Interface for the data that will be passed to the UI builder
 export interface UIData {
