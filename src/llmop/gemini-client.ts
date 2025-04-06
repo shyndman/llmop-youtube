@@ -83,9 +83,14 @@ export class VideoEvent {
     }
 
     // For the last event, use videoDuration if provided
-    if (events.length > 0 && videoDuration !== undefined) {
+    if (events.length > 0) {
       const lastEvent = events[events.length - 1];
-      lastEvent.duration = videoDuration - lastEvent.timestamp;
+      if (videoDuration !== undefined) {
+        lastEvent.duration = videoDuration - lastEvent.timestamp;
+      } else {
+        // Set duration to 0 for the last event if no video duration is provided
+        lastEvent.duration = 0;
+      }
     }
 
     return events;
