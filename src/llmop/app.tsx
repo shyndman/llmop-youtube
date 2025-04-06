@@ -77,6 +77,10 @@ createEffect(() => {
         logger.info(`Current active event: ${activeEvent.name}`, {
           timestamp: activeEvent.timestamp,
           description: activeEvent.description,
+          duration:
+            activeEvent.duration !== undefined
+              ? `${activeEvent.duration}s`
+              : 'unknown',
         });
       }
     }
@@ -205,6 +209,19 @@ export function buildUI(data: UIData): void {
     // These can be parsed using the parseTimestampLinks function
     const summaryWithLinks = parseTimestampLinks(data.summary);
     logger.info('Processed summary with timestamp links', { summaryWithLinks });
+  }
+
+  // Log events with their durations
+  if (data.events.length > 0) {
+    logger.info('Video events with durations:');
+    data.events.forEach((event, index) => {
+      logger.info(`Event ${index + 1}: ${event.name}`, {
+        timestamp: event.timestamp,
+        duration:
+          event.duration !== undefined ? `${event.duration}s` : 'unknown',
+        description: event.description,
+      });
+    });
   }
 
   // Show a notification with the number of events found

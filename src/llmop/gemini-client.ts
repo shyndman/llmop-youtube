@@ -11,11 +11,85 @@ import { DEFAULT_GEMINI_MODEL } from './config';
 // Create a logger for this module
 const logger = createLogger('GeminiClient');
 
-// Interface for a video event with timestamp
-export interface VideoEvent {
-  name: string;
-  description: string;
-  timestamp: number; // Timestamp in seconds
+// Class for a video event with timestamp and duration
+export class VideoEvent {
+  /**
+   * Create a new VideoEvent instance
+   * @param name Short, descriptive name for the event
+   * @param description Brief description of what happens during this event
+   * @param timestamp The timestamp in seconds when this event occurs
+   * @param nextEventTimestamp Optional timestamp of the next event (for duration calculation)
+   */
+  constructor(
+    public name: string,
+    public description: string,
+    public timestamp: number, // Timestamp in seconds
+    nextEventTimestamp?: number,
+  ) {
+    // Calculate duration if nextEventTimestamp is provided
+    if (nextEventTimestamp !== undefined) {
+      this._duration = nextEventTimestamp - timestamp;
+    }
+  }
+
+  // Private field to store the duration
+  private _duration?: number;
+
+  /**
+   * Get the duration of this event (time until the next event)
+   * Returns undefined if this is the last event or duration hasn't been set
+   */
+  get duration(): number | undefined {
+    return this._duration;
+  }
+
+  /**
+   * Set the duration of this event
+   * @param value Duration in seconds
+   */
+  set duration(value: number | undefined) {
+    this._duration = value;
+  }
+
+  /**
+   * Create a VideoEvent instance from a plain object
+   * @param obj Plain object with VideoEvent properties
+   * @returns A new VideoEvent instance
+   */
+  static fromObject(obj: {
+    name: string;
+    description: string;
+    timestamp: number;
+  }): VideoEvent {
+    return new VideoEvent(obj.name, obj.description, obj.timestamp);
+  }
+
+  /**
+   * Calculate durations for an array of VideoEvent instances
+   * @param events Array of VideoEvent instances sorted by timestamp
+   * @param videoDuration Optional total video duration for the last event
+   * @returns The same array with durations calculated
+   */
+  static calculateDurations(
+    events: VideoEvent[],
+    videoDuration?: number,
+  ): VideoEvent[] {
+    // Ensure events are sorted by timestamp
+    events.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Calculate durations for all events except the last one
+    for (let i = 0; i < events.length - 1; i++) {
+      events[i].duration = events[i + 1].timestamp - events[i].timestamp;
+    }
+
+    // For the last event, use videoDuration if provided
+    if (events.length > 0 && videoDuration !== undefined) {
+      const lastEvent = events[events.length - 1];
+      lastEvent.duration = videoDuration - lastEvent.timestamp;
+    }
+
+    return events;
+  }
 }
 
 // Interface for video analysis response (combines events and summary)
@@ -288,15 +362,55 @@ ${this.captions}
       logger.info(`Gemini API response received in ${elapsedTime}ms`);
 
       // Parse the structured output
-      const structuredOutput = JSON.parse(
-        response.text,
-      ) as VideoAnalysisResponse;
+      const rawOutput = JSON.parse(response.text) as {
+        events: Array<{
+          name: string;
+          description: string;
+          timestamp: number;
+        }>;
+        summary: string;
+        keyPoints: string[];
+      };
 
       // Log the response for debugging
       logger.info('Received structured output from Gemini API');
 
-      // Sort events by timestamp (ascending)
-      structuredOutput.events.sort((a, b) => a.timestamp - b.timestamp);
+      // Convert raw event objects to VideoEvent instances
+      const videoEvents = rawOutput.events.map((event) =>
+        VideoEvent.fromObject(event),
+      );
+
+      // Calculate durations for all events
+      // Try to get video duration if available
+      let videoDuration: number | undefined;
+      try {
+        const videoElement = document.querySelector('video');
+        if (
+          videoElement &&
+          videoElement.duration &&
+          !isNaN(videoElement.duration)
+        ) {
+          videoDuration = videoElement.duration;
+          logger.info(
+            `Using video duration for last event: ${videoDuration} seconds`,
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          'Could not get video duration for last event duration calculation',
+          error,
+        );
+      }
+
+      // Calculate durations for all events
+      VideoEvent.calculateDurations(videoEvents, videoDuration);
+
+      // Create the final response
+      const structuredOutput: VideoAnalysisResponse = {
+        events: videoEvents,
+        summary: rawOutput.summary,
+        keyPoints: rawOutput.keyPoints,
+      };
 
       logger.info(
         `Successfully generated video analysis with ${structuredOutput.events.length} events`,
