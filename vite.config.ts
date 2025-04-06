@@ -17,6 +17,21 @@ export default defineConfig({
         ],
         'run-at': 'document-end',
         author: 'Scott Hyndman',
+        grant: [
+          'GM.getValue',
+          'GM.setValue',
+          'GM.notification',
+          'GM.xmlHttpRequest',
+          'GM_getValue',
+          'GM_setValue',
+          'GM_notification',
+          'GM_xmlhttpRequest'
+        ],
+        require: [
+          'https://cdn.jsdelivr.net/npm/@violentmonkey/dom@2',
+          'https://cdn.jsdelivr.net/npm/@violentmonkey/ui@0.7',
+          'https://cdn.jsdelivr.net/npm/@violentmonkey/dom@2/dist/solid.min.js'
+        ],
       },
       build: {
         fileName: 'llmop.user.js',
