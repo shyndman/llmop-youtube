@@ -117,6 +117,8 @@ export class GeminiClient {
   private options: GeminiOptions;
   private captions: string | null = null;
   private videoId: string | null = null;
+  private videoTitle: string | null = null;
+  private videoDescription: string | null = null;
 
   /**
    * Create a new GeminiClient instance
@@ -165,10 +167,19 @@ export class GeminiClient {
    * Set the video context for the client
    * @param videoId The YouTube video ID
    * @param captions The video captions text
+   * @param videoTitle The title of the YouTube video
+   * @param videoDescription The description of the YouTube video
    */
-  setVideoContext(videoId: string, captions: string): void {
+  setVideoContext(
+    videoId: string,
+    captions: string,
+    videoTitle: string = '',
+    videoDescription: string = '',
+  ): void {
     this.videoId = videoId;
     this.captions = captions;
+    this.videoTitle = videoTitle;
+    this.videoDescription = videoDescription;
     logger.info(`Video context set for video ID: ${videoId}`);
   }
 
@@ -190,13 +201,20 @@ For the key events:
 5. Organize events in chronological order (ascending by timestamp)
 
 For the summary:
-1. Provide a 1-3 paragraph summary that captures the main content and purpose of the video
+1. Provide a 1-2 paragraph summary that captures the main content and purpose of the video
 2. Throughout your summary, include timestamp links using this format: [relevant text](timestamp in seconds)
    For example: "The speaker discusses climate change [at the beginning of the talk](45) and then presents solutions [later](312)."
 3. Include a list of 3-7 key points or takeaways from the video
 
 Focus on important moments, transitions, and significant points in the content.
 Be objective and accurate in your analysis.
+
+IMPORTANT: The captions may be automatically generated and could contain mistakes or inaccuracies.
+Terms, names, and concepts used in the video title and description should be considered authoritative
+and used preferentially when there are discrepancies with the captions.
+
+Video Title: ${this.videoTitle || 'Not available'}
+Video Description: ${this.videoDescription || 'Not available'}
 
 Here are the captions from the video (Video ID: ${this.videoId}):
 ${this.captions}
@@ -221,8 +239,15 @@ When answering:
 4. Make sure all timestamps are accurate and correspond to relevant moments in the video
 
 Your answer should be conversational and read naturally, with the timestamp links integrated seamlessly.
-Be objective and base your answers solely on the content of the video captions.
+Be objective and base your answers on the content of the video captions.
 If the question cannot be answered based on the captions, clearly state that.
+
+IMPORTANT: The captions may be automatically generated and could contain mistakes or inaccuracies.
+Terms, names, and concepts used in the video title and description should be considered authoritative
+and used preferentially when there are discrepancies with the captions.
+
+Video Title: ${this.videoTitle || 'Not available'}
+Video Description: ${this.videoDescription || 'Not available'}
 
 Here are the captions from the video (Video ID: ${this.videoId}):
 ${this.captions}
@@ -376,6 +401,22 @@ ${this.captions}
   getVideoId(): string | null {
     return this.videoId;
   }
+
+  /**
+   * Get the video title for the current video context
+   * @returns The video title or null if not set
+   */
+  getVideoTitle(): string | null {
+    return this.videoTitle;
+  }
+
+  /**
+   * Get the video description for the current video context
+   * @returns The video description or null if not set
+   */
+  getVideoDescription(): string | null {
+    return this.videoDescription;
+  }
 }
 
 /**
@@ -425,12 +466,16 @@ export function initGeminiClient(
  * @param genAI The initialized Gemini client
  * @param videoId The YouTube video ID
  * @param captions The video captions text
+ * @param videoTitle The title of the YouTube video
+ * @param videoDescription The description of the YouTube video
  * @returns A promise that resolves to the video analysis with events and summary
  */
 export async function generateVideoAnalysis(
   genAI: GoogleGenAI,
   videoId: string,
   captions: string,
+  videoTitle: string = '',
+  videoDescription: string = '',
 ): Promise<VideoAnalysisResponse> {
   try {
     logger.info(
@@ -441,7 +486,7 @@ export async function generateVideoAnalysis(
     // @ts-expect-error - We're accessing internal apiKey property
     const apiKey = `${genAI.apiKey}`;
     const client = new GeminiClient(apiKey);
-    client.setVideoContext(videoId, captions);
+    client.setVideoContext(videoId, captions, videoTitle, videoDescription);
 
     return await client.getVideoAnalysis();
   } catch (error) {

@@ -34,6 +34,8 @@ export interface UIData {
   apiResponseTime: number;
   modelName: string;
   temperature: number;
+  videoTitle: string;
+  videoDescription: string;
 }
 
 // Helper function to format seconds to MM:SS format
@@ -168,9 +170,18 @@ function YouTubeSummarizer() {
   const [apiResponseTime, setApiResponseTime] = createSignal(0);
   const [modelName, setModelName] = createSignal('');
   const [temperature, setTemperature] = createSignal(0);
-  const [geminiClient, setGeminiClient] = createSignal<GeminiClient | null>(
-    null,
-  );
+  // We no longer need a signal for the client as we're using a promise
+  // Add signals for video title and description
+  const [videoTitle, setVideoTitle] = createSignal<string>('');
+  const [videoDescription, setVideoDescription] = createSignal<string>('');
+
+  // Create a promise that resolves when the client is initialized
+  let clientInitPromiseResolve: (client: GeminiClient) => void;
+  let clientInitPromiseReject: (error: Error) => void;
+  const clientInitPromise = new Promise<GeminiClient>((resolve, reject) => {
+    clientInitPromiseResolve = resolve;
+    clientInitPromiseReject = reject;
+  });
 
   // Create effects to track changes to video ID and captions
   createEffect(() => {
@@ -185,8 +196,43 @@ function YouTubeSummarizer() {
       // Check if we've already processed this video
       if (!processedVideoIds().has(videoId)) {
         logger.info(`Auto-generating video analysis for video: ${videoId}`);
-        // Automatically generate video analysis when both video ID and captions are available
-        void generateVideoAnalysis(true);
+
+        // Reset UI state when navigating to a new video
+        setIsLoading(true);
+        setError(null);
+        setEvents([]);
+        setSummary('');
+        setKeyPoints([]);
+        setQuestionResponse(undefined);
+        setQueryType(QueryType.VIDEO_ANALYSIS);
+
+        // Extract video metadata and set video context
+        void (async () => {
+          // Extract metadata
+          await extractVideoMetadata();
+          logger.info('Video metadata extracted and stored in signals');
+
+          try {
+            // Wait for the client to be initialized
+            const client = await clientInitPromise;
+            logger.info('Gemini client is ready');
+
+            // Set the video context with the extracted metadata
+            const title = videoTitle();
+            const description = videoDescription();
+            client.setVideoContext(videoId, captions, title, description);
+            logger.info('Video context set on Gemini client');
+
+            // Automatically generate video analysis when client is ready
+            void generateVideoAnalysis(true);
+          } catch (error) {
+            logger.error('Failed to initialize Gemini client', error);
+            showToast('Error: Failed to initialize Gemini client', {
+              theme: 'dark',
+            });
+          }
+        })();
+
         // Add this video ID to the processed set
         setProcessedVideoIds((prev) => {
           const newSet = new Set(prev);
@@ -234,55 +280,103 @@ function YouTubeSummarizer() {
     }
   });
 
-  // Helper function to initialize the Gemini client
-  const initializeClient = async () => {
-    try {
-      // Get the API key asynchronously
-      logger.log('Getting API key');
-      const apiKey = await getApiKey();
-      logger.log('API key retrieved', { keyExists: !!apiKey });
+  // Helper function to extract video metadata (title and description)
+  const extractVideoMetadata = async () => {
+    // Extract video title from the page
+    const titleElement = document.querySelector('#title') as HTMLElement;
+    const title = titleElement?.innerText?.trim() || '';
 
-      if (!apiKey) {
-        logger.warn('No API key found');
-        showToast('Please set your Gemini API key in Violentmonkey settings', {
-          theme: 'dark',
-        });
-        setIsLoading(false);
-        setError(
-          'API key not configured. Please set your Gemini API key in Violentmonkey settings.',
-        );
-        return null;
+    // Try to expand the description if it's collapsed
+    const expandButton = document.querySelector('#expand');
+    if (expandButton instanceof HTMLElement) {
+      try {
+        expandButton.click();
+        // Give a small delay for the description to expand
+        await delay(100);
+        logger.info('Clicked description expand button');
+      } catch (expandError) {
+        logger.warn('Failed to click expand button', expandError);
       }
+    }
 
-      // Get Gemini configuration
-      const modelNameValue = await getGeminiModel();
-      const temperatureValue = await getGeminiTemperature();
-      setModelName(modelNameValue);
-      setTemperature(temperatureValue);
-      logger.log('Using Gemini configuration', {
-        model: modelNameValue,
-        temperature: temperatureValue,
-      });
+    // Extract video description (if available)
+    const descriptionElement = document.querySelector(
+      '#description-inline-expander',
+    ) as HTMLElement;
+    const description = descriptionElement?.innerText?.trim() || '';
 
-      // Initialize the Gemini client if not already initialized
-      let client = geminiClient();
-      if (!client) {
-        client = new GeminiClient(apiKey, {
+    logger.log('Extracted video metadata', {
+      title,
+      descriptionLength: description.length,
+    });
+
+    // Update the signals
+    setVideoTitle(title);
+    setVideoDescription(description);
+
+    return { videoTitle: title, videoDescription: description };
+  };
+
+  // Effect to initialize the Gemini client when the app starts or when configuration changes
+  createEffect(() => {
+    // This async function will initialize the client
+    const initClient = async () => {
+      try {
+        // Get the API key asynchronously
+        logger.log('Getting API key');
+        const apiKey = await getApiKey();
+        logger.log('API key retrieved', { keyExists: !!apiKey });
+
+        if (!apiKey) {
+          logger.warn('No API key found');
+          showToast(
+            'Please set your Gemini API key in Violentmonkey settings',
+            {
+              theme: 'dark',
+            },
+          );
+          setError(
+            'API key not configured. Please set your Gemini API key in Violentmonkey settings.',
+          );
+          clientInitPromiseReject(new Error('API key not configured'));
+          return;
+        }
+
+        // Get Gemini configuration
+        const modelNameValue = await getGeminiModel();
+        const temperatureValue = await getGeminiTemperature();
+        setModelName(modelNameValue);
+        setTemperature(temperatureValue);
+        logger.log('Using Gemini configuration', {
           model: modelNameValue,
           temperature: temperatureValue,
         });
-        setGeminiClient(client);
-      }
 
-      return client;
-    } catch (error) {
-      logger.error('Error initializing Gemini client', error);
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      setError(`Error initializing Gemini client: ${errorMessage}`);
-      return null;
-    }
-  };
+        // Initialize the Gemini client
+        const client = new GeminiClient(apiKey, {
+          model: modelNameValue,
+          temperature: temperatureValue,
+        });
+        logger.info('Gemini client initialized');
+
+        // Resolve the promise with the initialized client
+        clientInitPromiseResolve(client);
+      } catch (error) {
+        logger.error('Error initializing Gemini client', error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        setError(`Error initializing Gemini client: ${errorMessage}`);
+
+        // Reject the promise with the error
+        clientInitPromiseReject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    };
+
+    // Initialize the client when the component mounts
+    void initClient();
+  });
 
   // Generate video analysis with key events and summary
   const generateVideoAnalysis = async (isAutomatic = false) => {
@@ -299,14 +393,13 @@ function YouTubeSummarizer() {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    setEvents([]);
-    setSummary('');
-    setKeyPoints([]);
-    setQuestionResponse(undefined);
-    setQueryType(QueryType.VIDEO_ANALYSIS);
-    logger.log('Setting loading state', { loading: true });
+    // Only set loading state if this is a manual request (not automatic)
+    if (!isAutomatic) {
+      setIsLoading(true);
+      setError(null);
+      setQueryType(QueryType.VIDEO_ANALYSIS);
+      logger.log('Setting loading state', { loading: true });
+    }
 
     const startTime = Date.now();
 
@@ -330,84 +423,91 @@ function YouTubeSummarizer() {
         return;
       }
 
-      // Initialize the client
-      const client = await initializeClient();
-      if (!client) {
+      try {
+        // Wait for the client to be initialized
+        const client = await clientInitPromise;
+
+        // The video context is already set when we navigate to the page
+        logger.log('Using Gemini client with existing video context');
+
+        // Generate video analysis with events and summary
+        const result = await client.getVideoAnalysis();
+
+        // Calculate API response time
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        setApiResponseTime(responseTime);
+
+        logger.log('Video analysis generated', {
+          events: result.events.length,
+          summary: result.summary.substring(0, 100) + '...',
+          keyPoints: result.keyPoints,
+          responseTime: `${responseTime}ms`,
+          model: modelName(),
+          temperature: temperature(),
+        });
+
+        // Update the UI with the results
+        setEvents(result.events);
+        setSummary(result.summary); // Summary may contain timestamp links in the format [text](timestamp)
+        setKeyPoints(result.keyPoints);
         setIsLoading(false);
-        return;
+
+        // Only show toast for automatic generation if we found events and it's not handled by buildUI
+        if (isAutomatic && result.events.length > 0) {
+          showToast(
+            `Video analysis complete: ${result.events.length} key moments identified in ${responseTime}ms!`,
+            {
+              theme: 'dark',
+            },
+          );
+        }
+
+        // Prepare data for UI builder
+        const uiData: UIData = {
+          videoId: currentVideo,
+          events: result.events,
+          summary: result.summary,
+          keyPoints: result.keyPoints,
+          queryType: QueryType.VIDEO_ANALYSIS,
+          isLoading: false,
+          error: null,
+          videoDuration: videoDuration(),
+          captionsLength: captionsText.length,
+          apiResponseTime: responseTime,
+          modelName: modelName(),
+          temperature: temperature(),
+          videoTitle: videoTitle(),
+          videoDescription: videoDescription(),
+        };
+
+        // Call the UI builder function
+        buildUI(uiData);
+      } catch (error) {
+        logger.error('Error generating video analysis', error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        // Only show error toast for manual generation
+        if (!isAutomatic) {
+          showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+        }
+
+        setIsLoading(false);
+        setError(`Error generating video analysis: ${errorMessage}`);
+
+        // Calculate API response time even for errors
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        setApiResponseTime(responseTime);
       }
-
-      // Set the video context
-      client.setVideoContext(currentVideo, captionsText);
-
-      // Generate video analysis with events and summary
-      const result = await client.getVideoAnalysis();
-
-      // Calculate API response time
-      const endTime = Date.now();
-      const responseTime = endTime - startTime;
-      setApiResponseTime(responseTime);
-
-      logger.log('Video analysis generated', {
-        events: result.events.length,
-        summary: result.summary.substring(0, 100) + '...',
-        keyPoints: result.keyPoints,
-        responseTime: `${responseTime}ms`,
-        model: modelName(),
-        temperature: temperature(),
-      });
-
-      // Update the UI with the results
-      setEvents(result.events);
-      setSummary(result.summary); // Summary may contain timestamp links in the format [text](timestamp)
-      setKeyPoints(result.keyPoints);
-      setIsLoading(false);
-
-      // Only show toast for automatic generation if we found events and it's not handled by buildUI
-      if (isAutomatic && result.events.length > 0) {
-        showToast(
-          `Video analysis complete: ${result.events.length} key moments identified in ${responseTime}ms!`,
-          {
-            theme: 'dark',
-          },
-        );
-      }
-
-      // Prepare data for UI builder
-      const uiData: UIData = {
-        videoId: currentVideo,
-        events: result.events,
-        summary: result.summary,
-        keyPoints: result.keyPoints,
-        queryType: QueryType.VIDEO_ANALYSIS,
-        isLoading: false,
-        error: null,
-        videoDuration: videoDuration(),
-        captionsLength: captionsText.length,
-        apiResponseTime: responseTime,
-        modelName: modelName(),
-        temperature: temperature(),
-      };
-
-      // Call the UI builder function
-      buildUI(uiData);
     } catch (error) {
-      logger.error('Error generating video analysis', error);
+      logger.error('Unexpected error in generateVideoAnalysis', error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-
-      // Only show error toast for manual generation
-      if (!isAutomatic) {
-        showToast(`Error: ${errorMessage}`, { theme: 'dark' });
-      }
-
+      showToast(`Unexpected error: ${errorMessage}`, { theme: 'dark' });
       setIsLoading(false);
-      setError(`Error generating video analysis: ${errorMessage}`);
-
-      // Calculate API response time even for errors
-      const endTime = Date.now();
-      const responseTime = endTime - startTime;
-      setApiResponseTime(responseTime);
+      setError(`Unexpected error: ${errorMessage}`);
     }
   };
 
@@ -432,6 +532,8 @@ function YouTubeSummarizer() {
           apiResponseTime: apiResponseTime(),
           modelName: modelName(),
           temperature: temperature(),
+          videoTitle: videoTitle(),
+          videoDescription: videoDescription(),
         };
 
         buildUI(uiData);
@@ -457,10 +559,8 @@ function YouTubeSummarizer() {
 
     setIsLoading(true);
     setError(null);
-    setEvents([]);
-    setSummary(undefined);
-    setQuestionResponse(undefined);
     setQueryType(QueryType.CUSTOM_QUESTION);
+    // Don't clear previous results, just update the question response when it's ready
     logger.log('Setting loading state', { loading: true });
 
     const startTime = Date.now();
@@ -481,71 +581,78 @@ function YouTubeSummarizer() {
         return;
       }
 
-      // Initialize the client
-      const client = await initializeClient();
-      if (!client) {
+      try {
+        // Wait for the client to be initialized
+        const client = await clientInitPromise;
+
+        // The video context is already set when we navigate to the page
+        logger.log('Using Gemini client with existing video context');
+
+        // Ask the question
+        const result = await client.askQuestion(question);
+
+        // Calculate API response time
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        setApiResponseTime(responseTime);
+
+        logger.log('Question answered', {
+          answer: result.answer,
+          responseTime: `${responseTime}ms`,
+          model: modelName(),
+          temperature: temperature(),
+        });
+
+        // Update the UI with the results
+        setQuestionResponse(result);
         setIsLoading(false);
-        return;
+
+        // Show toast for question answering
+        showToast(`Answered question in ${responseTime}ms!`, {
+          theme: 'dark',
+        });
+
+        // Prepare data for UI builder
+        const uiData: UIData = {
+          videoId: currentVideo,
+          events: [],
+          questionResponse: result,
+          queryType: QueryType.CUSTOM_QUESTION,
+          isLoading: false,
+          error: null,
+          videoDuration: videoDuration(),
+          captionsLength: captionsText.length,
+          apiResponseTime: responseTime,
+          modelName: modelName(),
+          temperature: temperature(),
+          videoTitle: videoTitle(),
+          videoDescription: videoDescription(),
+        };
+
+        // Call the UI builder function
+        buildUI(uiData);
+      } catch (error) {
+        logger.error('Error answering question', error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        showToast(`Error: ${errorMessage}`, { theme: 'dark' });
+
+        setIsLoading(false);
+        setError(`Error answering question: ${errorMessage}`);
+
+        // Calculate API response time even for errors
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        setApiResponseTime(responseTime);
       }
-
-      // Set the video context
-      client.setVideoContext(currentVideo, captionsText);
-
-      // Ask the question
-      const result = await client.askQuestion(question);
-
-      // Calculate API response time
-      const endTime = Date.now();
-      const responseTime = endTime - startTime;
-      setApiResponseTime(responseTime);
-
-      logger.log('Question answered', {
-        answer: result.answer,
-        responseTime: `${responseTime}ms`,
-        model: modelName(),
-        temperature: temperature(),
-      });
-
-      // Update the UI with the results
-      setQuestionResponse(result);
-      setIsLoading(false);
-
-      // Show toast for question answering
-      showToast(`Answered question in ${responseTime}ms!`, {
-        theme: 'dark',
-      });
-
-      // Prepare data for UI builder
-      const uiData: UIData = {
-        videoId: currentVideo,
-        events: [],
-        questionResponse: result,
-        queryType: QueryType.CUSTOM_QUESTION,
-        isLoading: false,
-        error: null,
-        videoDuration: videoDuration(),
-        captionsLength: captionsText.length,
-        apiResponseTime: responseTime,
-        modelName: modelName(),
-        temperature: temperature(),
-      };
-
-      // Call the UI builder function
-      buildUI(uiData);
     } catch (error) {
-      logger.error('Error answering question', error);
+      logger.error('Unexpected error in askQuestion', error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-
-      showToast(`Error: ${errorMessage}`, { theme: 'dark' });
-
+      showToast(`Unexpected error: ${errorMessage}`, { theme: 'dark' });
       setIsLoading(false);
-      setError(`Error answering question: ${errorMessage}`);
-
-      // Calculate API response time even for errors
-      const endTime = Date.now();
-      const responseTime = endTime - startTime;
-      setApiResponseTime(responseTime);
+      setError(`Unexpected error: ${errorMessage}`);
     }
   };
 
