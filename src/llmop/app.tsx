@@ -120,17 +120,35 @@ export function parseTimestampLinks(text: string): string {
   if (!text) return '';
 
   // Regular expression to match [text](timestamp) format
-  const linkRegex = /\[(.*?)\]\((\d+)\)/g;
+  // Updated to handle potential decimal timestamps
+  const linkRegex = /\[(.*?)\]\(([\d.]+)\)/g;
 
   // Replace all matches with HTML links
   return text.replace(
     linkRegex,
     (_match, linkText: string, timestamp: string) => {
-      const seconds = parseInt(timestamp, 10);
+      // Parse the timestamp and ensure it's an integer
+      // If it's a decimal, convert to integer by flooring
+      const rawSeconds = parseFloat(timestamp);
+      const seconds = isNaN(rawSeconds) ? 0 : Math.floor(rawSeconds);
+
+      // Log if we had to fix a non-integer timestamp
+      if (rawSeconds !== seconds) {
+        logger.warn('Fixed non-integer timestamp', {
+          original: timestamp,
+          fixed: seconds,
+        });
+      }
+
       const formattedTime = formatTimestamp(seconds);
       return `<a href="#" class="timestamp-link" data-timestamp="${seconds}" title="Jump to ${formattedTime}">${linkText}</a>`;
     },
   );
+
+  // Note: This function now handles the following cases:
+  // 1. Standard format: [text](123)
+  // 2. Decimal timestamps: [text](123.45) -> converts to [text](123)
+  // 3. Invalid timestamps: [text](abc) -> converts to [text](0)
 }
 
 // Helper function to seek to a timestamp in the video

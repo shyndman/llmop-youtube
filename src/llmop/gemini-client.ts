@@ -272,12 +272,17 @@ For the key events:
 2. For each key event, provide a short, descriptive name
 3. Write a brief description of what happens at each event
 4. Identify the timestamp (in seconds from the start of the video) when each event occurs
+   - IMPORTANT: Timestamps MUST be integers (whole numbers) only
+   - Do NOT use decimal or floating-point timestamps (e.g., 45.5 or 312.7)
 5. Organize events in chronological order (ascending by timestamp)
 
 For the summary:
 1. Provide a 1-2 paragraph summary that captures the main content and purpose of the video
-2. Throughout your summary, include timestamp links using this format: [relevant text](timestamp in seconds)
-   For example: "The speaker discusses climate change [at the beginning of the talk](45) and then presents solutions [later](312)."
+2. Throughout your summary, include timestamp links using this EXACT format: [relevant text](timestamp in seconds)
+   - The format must include BOTH the square brackets with text AND the parentheses with the timestamp
+   - The timestamp must be an integer (whole number) in seconds
+   - CORRECT examples: "[at the beginning of the talk](45)" or "[later in the video](312)"
+   - INCORRECT examples: "(45)" (missing text in brackets), "[at 45.5 seconds]" (wrong format), "[at timestamp 45.5](45.5)" (decimal timestamp)
 3. Include a list of 3-7 key points or takeaways from the video
 
 Focus on important moments, transitions, and significant points in the content.
@@ -307,10 +312,15 @@ Your task is to answer questions about the video based on the captions provided.
 
 When answering:
 1. Provide a clear, detailed answer to the question
-2. Throughout your answer, include timestamp links using this format: [relevant text](timestamp in seconds)
-   For example: "The speaker discusses climate change [at the beginning of the talk](45) and then presents solutions [later](312)."
+2. Throughout your answer, include timestamp links using this EXACT format: [relevant text](timestamp in seconds)
+   - The format must include BOTH the square brackets with text AND the parentheses with the timestamp
+   - The timestamp must be an integer (whole number) in seconds
+   - CORRECT examples: "[at the beginning of the talk](45)" or "[later in the video](312)"
+   - INCORRECT examples: "(45)" (missing text in brackets), "[at 45.5 seconds]" (wrong format), "[at timestamp 45.5](45.5)" (decimal timestamp)
 3. Use these timestamp links naturally within your sentences to reference specific moments
 4. Make sure all timestamps are accurate and correspond to relevant moments in the video
+   - IMPORTANT: Timestamps MUST be integers (whole numbers) only
+   - Do NOT use decimal or floating-point timestamps (e.g., 45.5 or 312.7)
 
 Your answer should be conversational and read naturally, with the timestamp links integrated seamlessly.
 Be objective and base your answers on the content of the video captions.
