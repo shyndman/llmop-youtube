@@ -1,13 +1,10 @@
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
-import fs from 'fs';
-import path from 'path';
-
-// Read package.json for author information
-const packageJson = JSON.parse(fs.readFileSync(path.resolve('./package.json'), 'utf-8'));
 
 export default defineConfig({
+  // Configure Solid.js
   plugins: [
+
     monkey({
       entry: 'src/llmop/index.ts',
       userscript: {
@@ -19,7 +16,7 @@ export default defineConfig({
           'https://youtu.be/*'
         ],
         'run-at': 'document-end',
-        author: packageJson.author,
+        author: 'Scott Hyndman',
       },
       build: {
         fileName: 'llmop.user.js',
@@ -36,8 +33,17 @@ export default defineConfig({
     }),
   ],
   // Ensure JSX works with Solid.js
-  esbuild: {
-    jsx: 'preserve',
-    jsxImportSource: 'solid-js',
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js', '.jsx']
+  },
+  optimizeDeps: {
+    extensions: ['jsx', 'tsx'],
+    esbuildOptions: {
+      jsx: 'preserve',
+      jsxImportSource: 'solid-js',
+    }
+  },
+  build: {
+    target: 'esnext',
   },
 });
