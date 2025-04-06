@@ -1,15 +1,21 @@
-import { createSignal, onCleanup } from 'solid-js';
+import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { createLogger } from './debug';
 import { getPollingIntervalSync } from './config';
 import { extractCaptions } from './caption-extractor';
 import { extractVideoId } from './url-utils';
+import { parseTimeString } from './time-utils';
+import { VideoEvent } from './gemini-client';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');
 
-// Create signals to store the current video ID and captions
+// Create signals to store the current video ID, captions, and playhead position
 const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null);
 const [currentCaptions, setCurrentCaptions] = createSignal<string | null>(null);
+const [currentPlayheadPosition, setCurrentPlayheadPosition] = createSignal<
+  number | null
+>(null);
+const [currentEvents, setCurrentEvents] = createSignal<VideoEvent[]>([]);
 
 // Create a simple cache for captions to avoid redundant extraction
 // Map of video ID to caption text
@@ -72,10 +78,16 @@ async function processCurrentUrl(): Promise<void> {
 
       // Extract captions for this video
       await extractCaptionsForVideo(videoId);
+
+      // Start playhead position polling
+      startPlayheadPolling();
     } else {
       setCurrentVideoId(null);
       setCurrentCaptions(null);
       logger.info('Not on a YouTube watch page', { url: currentUrl });
+
+      // Stop playhead polling when not on a watch page
+      stopPlayheadPolling();
     }
   } catch (error) {
     logger.error('Error processing URL', error);
@@ -171,14 +183,17 @@ async function extractCaptionsForVideo(videoId: string): Promise<void> {
 // Store the last URL we processed to avoid unnecessary work
 let lastProcessedUrl = '';
 
-// Store the interval ID for cleanup
+// Store the interval IDs for cleanup
 let pollingIntervalId: number | null = null;
+let playheadPollingIntervalId: number | null = null;
 
-// Store the polling interval for restarting the timer
+// Store the polling intervals for restarting the timers
 let currentPollingInterval = 0;
+const playheadPollingInterval = 1000; // 1 second for playhead updates
 
 // Track whether polling is currently active
 let isPollingActive = false;
+let isPlayheadPollingActive = false;
 
 /**
  * Very lightweight check to see if the URL has changed
@@ -236,17 +251,99 @@ function stopPolling(): void {
 }
 
 /**
+ * Starts polling for playhead position updates
+ */
+function startPlayheadPolling(): void {
+  if (isPlayheadPollingActive) {
+    return; // Already polling
+  }
+
+  logger.log('Starting playhead position polling');
+  playheadPollingIntervalId = window.setInterval(
+    updatePlayheadPosition,
+    playheadPollingInterval,
+  );
+  isPlayheadPollingActive = true;
+
+  // Update immediately on start
+  updatePlayheadPosition();
+}
+
+/**
+ * Stops polling for playhead position updates
+ */
+function stopPlayheadPolling(): void {
+  if (!isPlayheadPollingActive) {
+    return; // Already stopped
+  }
+
+  logger.log('Stopping playhead position polling');
+  if (playheadPollingIntervalId !== null) {
+    window.clearInterval(playheadPollingIntervalId);
+    playheadPollingIntervalId = null;
+  }
+  isPlayheadPollingActive = false;
+
+  // Reset the playhead position when stopping polling
+  setCurrentPlayheadPosition(null);
+}
+
+/**
+ * Updates the current playhead position by reading the .ytp-time-current element
+ */
+function updatePlayheadPosition(): void {
+  try {
+    // Only update if we're on a watch page
+    if (!currentVideoId()) {
+      stopPlayheadPolling();
+      return;
+    }
+
+    // Find the time display element
+    const timeCurrentElement = document.querySelector('.ytp-time-current');
+    if (!timeCurrentElement) {
+      logger.warn('Could not find .ytp-time-current element');
+      return;
+    }
+
+    // Get the current time text (format: mm:ss or h:mm:ss)
+    const timeText = timeCurrentElement.textContent;
+    if (!timeText) {
+      logger.warn('Empty time text in .ytp-time-current element');
+      return;
+    }
+
+    // Parse the time text to seconds
+    const seconds = parseTimeString(timeText);
+    if (seconds !== null) {
+      setCurrentPlayheadPosition(seconds);
+      logger.log('Updated playhead position', { position: seconds, timeText });
+    } else {
+      logger.warn('Failed to parse time text', { timeText });
+    }
+  } catch (error) {
+    logger.error('Error updating playhead position', error);
+  }
+}
+
+/**
  * Handles visibility change events
  */
 function handleVisibilityChange(): void {
   if (document.hidden) {
     // Page is now hidden, stop polling
-    logger.log('Page hidden, pausing URL polling');
+    logger.log('Page hidden, pausing polling');
     stopPolling();
+    stopPlayheadPolling();
   } else {
     // Page is now visible, restart polling and check for URL changes immediately
-    logger.log('Page visible, resuming URL polling');
+    logger.log('Page visible, resuming polling');
     startPolling();
+
+    // Only start playhead polling if we're on a watch page
+    if (currentVideoId()) {
+      startPlayheadPolling();
+    }
 
     // Check for URL changes immediately in case they happened while hidden
     checkForUrlChange();
@@ -285,10 +382,61 @@ export function initYouTubeWatcher(): void {
     logger.log('Cleaning up YouTube watcher');
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     stopPolling();
+    stopPlayheadPolling();
   });
 
   logger.log('YouTube watcher initialized');
 }
 
+/**
+ * Set the current video events
+ * This is called from the app component when events are loaded
+ * @param events The video events to set
+ */
+export function setVideoEvents(events: VideoEvent[]): void {
+  setCurrentEvents(events);
+  logger.info(`Set ${events.length} video events`);
+}
+
+/**
+ * Create a derived signal that returns the current active event based on playhead position
+ * Returns null if no event is active or if not on a watch page
+ */
+const currentActiveEvent = createMemo(() => {
+  const playheadPosition = currentPlayheadPosition();
+  const events = currentEvents();
+
+  // If not on a watch page or no playhead position, return null
+  if (playheadPosition === null || events.length === 0) {
+    return null;
+  }
+
+  // Find the event whose timestamp is closest to but not after the current playhead position
+  // This assumes events are sorted by timestamp (which they should be)
+  let activeEvent: VideoEvent | null = null;
+  let closestTimeDiff = Number.MAX_SAFE_INTEGER;
+
+  for (const event of events) {
+    // Calculate how far the event is from the current position
+    const timeDiff = playheadPosition - event.timestamp;
+
+    // Only consider events that have already happened (timeDiff >= 0)
+    // and are closer than the current closest event
+    if (timeDiff >= 0 && timeDiff < closestTimeDiff) {
+      closestTimeDiff = timeDiff;
+      activeEvent = event;
+    }
+  }
+
+  return activeEvent;
+});
+
 // Export the signals and utility functions for use in other components
-export { currentVideoId, currentCaptions, delay };
+export {
+  currentVideoId,
+  currentCaptions,
+  currentPlayheadPosition,
+  currentEvents,
+  currentActiveEvent,
+  delay,
+};

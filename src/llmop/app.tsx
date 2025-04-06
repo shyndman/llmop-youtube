@@ -5,7 +5,14 @@ import { getPanel, showToast } from '@violentmonkey/ui';
 // Import configuration
 import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
 // Import YouTube watcher
-import { currentVideoId, currentCaptions, delay } from './youtube-watcher';
+import {
+  currentVideoId,
+  currentCaptions,
+  currentPlayheadPosition,
+  currentActiveEvent,
+  setVideoEvents,
+  delay,
+} from './youtube-watcher';
 // Import debug utilities
 import { createLogger } from './debug';
 // Import Gemini client
@@ -36,6 +43,8 @@ export interface UIData {
   temperature: number;
   videoTitle: string;
   videoDescription: string;
+  currentPlayheadPosition: number | null;
+  currentActiveEvent: VideoEvent | null;
 }
 
 // Helper function to format seconds to MM:SS format
@@ -449,6 +458,8 @@ function YouTubeSummarizer() {
 
         // Update the UI with the results
         setEvents(result.events);
+        // Also update the shared events in youtube-watcher for the current active event signal
+        setVideoEvents(result.events);
         setSummary(result.summary); // Summary may contain timestamp links in the format [text](timestamp)
         setKeyPoints(result.keyPoints);
         setIsLoading(false);
@@ -479,6 +490,8 @@ function YouTubeSummarizer() {
           temperature: temperature(),
           videoTitle: videoTitle(),
           videoDescription: videoDescription(),
+          currentPlayheadPosition: currentPlayheadPosition(),
+          currentActiveEvent: currentActiveEvent(),
         };
 
         // Call the UI builder function
@@ -534,6 +547,8 @@ function YouTubeSummarizer() {
           temperature: temperature(),
           videoTitle: videoTitle(),
           videoDescription: videoDescription(),
+          currentPlayheadPosition: currentPlayheadPosition(),
+          currentActiveEvent: currentActiveEvent(),
         };
 
         buildUI(uiData);
@@ -627,6 +642,8 @@ function YouTubeSummarizer() {
           temperature: temperature(),
           videoTitle: videoTitle(),
           videoDescription: videoDescription(),
+          currentPlayheadPosition: currentPlayheadPosition(),
+          currentActiveEvent: currentActiveEvent(),
         };
 
         // Call the UI builder function
