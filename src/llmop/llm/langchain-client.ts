@@ -64,9 +64,6 @@ export class LangChainClient {
       // Store the options
       this.options = { ...DEFAULT_OPTIONS, ...options };
 
-      // Configure LangSmith if tracing is enabled
-      void this.configureLangSmith();
-
       // Create the LangChain model
       this.model = new ChatGoogleGenerativeAI({
         apiKey,
@@ -88,15 +85,6 @@ export class LangChainClient {
       logger.error('Error initializing LangChain client', error);
       throw new Error(`Failed to initialize LangChain client: ${error}`);
     }
-  }
-
-  /**
-   * Configure LangSmith for tracing
-   * @private
-   */
-  private async configureLangSmith(): Promise<void> {
-    // Nothing to do here - tracing is configured per request
-    // This is kept for compatibility with the existing code
   }
 
   /**

@@ -6,7 +6,7 @@ export const DEFAULT_GEMINI_MODEL = 'models/gemini-2.0-flash';
 export const DEFAULT_CAPTIONS_CACHE_SIZE = 10; // Number of videos to cache
 
 // LangSmith configuration defaults
-export const DEFAULT_LANGSMITH_TRACING = false;
+export const DEFAULT_LANGSMITH_TRACING = true;
 export const DEFAULT_LANGSMITH_ENDPOINT = 'https://api.smith.langchain.com';
 export const DEFAULT_LANGSMITH_PROJECT = 'llmop-youtube';
 export const DEFAULT_LANGSMITH_SAMPLING_RATE = 0.1; // 10% sampling rate to stay within limits
@@ -178,9 +178,14 @@ export async function getLangSmithConfig(): Promise<{
  * @returns True if the request should be traced, false otherwise
  */
 export async function shouldTraceRequest(): Promise<boolean> {
+  // Import logger here to avoid circular dependencies
+  const { createLogger } = await import('./debug');
+  const logger = createLogger('LangSmith');
+
   // If tracing is disabled, never trace
   const tracingEnabled = await getLangSmithTracingEnabled();
   if (!tracingEnabled) {
+    logger.info('LangSmith tracing is disabled');
     return false;
   }
 
@@ -189,16 +194,22 @@ export async function shouldTraceRequest(): Promise<boolean> {
 
   // If sampling rate is 1.0, always trace
   if (samplingRate >= 1.0) {
+    logger.info('LangSmith sampling rate is 1.0, always tracing');
     return true;
   }
 
   // If sampling rate is 0.0, never trace
   if (samplingRate <= 0.0) {
+    logger.info('LangSmith sampling rate is 0.0, never tracing');
     return false;
   }
 
   // Otherwise, randomly decide based on sampling rate
-  return Math.random() < samplingRate;
+  const shouldTrace = Math.random() < samplingRate;
+  logger.info(
+    `LangSmith sampling decision: ${shouldTrace ? 'trace' : 'skip'} (rate: ${samplingRate})`,
+  );
+  return shouldTrace;
 }
 
 /**

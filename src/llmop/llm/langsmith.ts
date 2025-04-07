@@ -4,6 +4,7 @@
  */
 
 import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
+import { Client } from 'langsmith';
 import { createLogger } from '../debug';
 import { getLangSmithConfig, shouldTraceRequest } from '../config';
 
@@ -32,20 +33,17 @@ export async function getLangChainTracer(): Promise<LangChainTracer | null> {
       return null;
     }
 
-    // Create a new LangChain tracer
-    langChainTracer = new LangChainTracer({
-      projectName: config.project,
+    // Create a LangSmith client
+    const client = new Client({
+      apiKey: config.apiKey,
+      apiUrl: config.endpoint,
     });
 
-    // Set global variables for LangChain.js to use
-    // These are picked up by LangChain.js in browser environments
-    globalThis.LANGCHAIN_TRACING = 'true';
-    globalThis.LANGCHAIN_API_KEY = config.apiKey;
-    globalThis.LANGCHAIN_ENDPOINT = config.endpoint;
-    globalThis.LANGCHAIN_PROJECT = config.project;
-
-    // For better performance in browser environments
-    globalThis.LANGCHAIN_CALLBACKS_BACKGROUND = 'true';
+    // Create a new LangChain tracer with the client
+    langChainTracer = new LangChainTracer({
+      projectName: config.project,
+      client: client,
+    });
 
     logger.info('LangChain tracer created successfully');
     return langChainTracer;
