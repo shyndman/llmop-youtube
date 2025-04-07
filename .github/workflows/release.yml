@@ -63,23 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          if [ -z "$LATEST_TAG" ]; then
-            # If no tags exist, use all commits
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            git log --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            # Otherwise, use commits since the latest tag
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            git log ${LATEST_TAG}..HEAD --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
+      # Using GitHub's automatically generated release notes instead of custom changelog generation
 
       - name: Create new release
         if: steps.check-release.outputs.exists == 'false'
@@ -87,9 +71,7 @@ jobs:
         with:
           name: v${{ steps.package-version.outputs.version }}
           tag_name: v${{ steps.package-version.outputs.version }}
-          body: |
-            ## Changelog
-            ${{ steps.changelog.outputs.CHANGELOG }}
+          generate_release_notes: true
           files: |
             dist/llmop.user.js
             dist/llmop.debug.user.js
@@ -104,9 +86,7 @@ jobs:
         with:
           name: v${{ steps.package-version.outputs.version }}
           tag_name: v${{ steps.package-version.outputs.version }}
-          body: |
-            ## Changelog
-            ${{ steps.changelog.outputs.CHANGELOG }}
+          generate_release_notes: true
           files: |
             dist/llmop.user.js
             dist/llmop.debug.user.js
