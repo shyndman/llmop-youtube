@@ -10,7 +10,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "dev": "rollup -wc",
+    "dev": "rollup -wc --watch.onStart 'firefox dist/llmop.user.js'",
     "clean": "del-cli dist",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
