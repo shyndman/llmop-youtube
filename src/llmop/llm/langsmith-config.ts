@@ -10,7 +10,7 @@ import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 const logger = createLogger('LangSmithConfig');
 
 // Default configuration values
-export const DEFAULT_LANGSMITH_TRACING = false;
+export const DEFAULT_LANGSMITH_TRACING = true;
 export const DEFAULT_LANGSMITH_ENDPOINT = 'https://api.smith.langchain.com';
 export const DEFAULT_LANGSMITH_PROJECT = 'llmop-youtube';
 export const DEFAULT_LANGSMITH_SAMPLING_RATE = 0.1; // 10% sampling rate to stay within limits
