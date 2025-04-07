@@ -3,7 +3,6 @@ import { createLogger } from './debug';
 import { getPollingIntervalSync } from './config';
 import { extractCaptions } from './caption-extractor';
 import { extractVideoId } from './url-utils';
-import { parseTimeString } from './time-utils';
 import { VideoEvent } from './gemini-client';
 
 // Create a logger for this module
@@ -288,7 +287,7 @@ function readPlayheadPosition(): number | null {
     return null;
   }
 
-  // Method 1: Try to get the time directly from the video element (works even when controls are hidden)
+  // Get the time directly from the video element (works even when controls are hidden)
   const videoElement = document.querySelector(
     'video.html5-main-video',
   ) as HTMLVideoElement;
@@ -300,37 +299,12 @@ function readPlayheadPosition(): number | null {
     return currentTime;
   }
 
-  logger.warn(
-    'Could not find video.html5-main-video element, falling back to UI method',
-  );
-
-  // Method 2 (fallback): Find the time display element in the UI
-  const timeCurrentElement = document.querySelector('.ytp-time-current');
-  if (!timeCurrentElement) {
-    logger.warn('Could not find .ytp-time-current element');
-    return null;
-  }
-
-  // Get the current time text (format: mm:ss or h:mm:ss)
-  const timeText = timeCurrentElement.textContent;
-  if (!timeText) {
-    logger.warn('Empty time text in .ytp-time-current element');
-    return null;
-  }
-
-  // Parse the time text to seconds
-  const seconds = parseTimeString(timeText);
-  if (seconds === null) {
-    logger.warn('Failed to parse time text', { timeText });
-  } else {
-    logger.log('Read playhead position from UI element', { position: seconds });
-  }
-
-  return seconds;
+  logger.warn('Could not find video.html5-main-video element');
+  return null;
 }
 
 /**
- * Updates the current playhead position by reading from the video element or UI
+ * Updates the current playhead position by reading from the video element
  */
 function updatePlayheadPosition(): void {
   try {
