@@ -4,9 +4,8 @@ on:
   pull_request:
     branches: [ main ]
   push:
-    branches: true
-    tags: true
   workflow_call:
+
 jobs:
   test:
     runs-on: ubuntu-latest
