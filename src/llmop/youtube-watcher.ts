@@ -288,7 +288,23 @@ function readPlayheadPosition(): number | null {
     return null;
   }
 
-  // Find the time display element
+  // Method 1: Try to get the time directly from the video element (works even when controls are hidden)
+  const videoElement = document.querySelector(
+    'video.html5-main-video',
+  ) as HTMLVideoElement;
+  if (videoElement) {
+    const currentTime = videoElement.currentTime;
+    logger.log('Read playhead position from video element', {
+      position: currentTime,
+    });
+    return currentTime;
+  }
+
+  logger.warn(
+    'Could not find video.html5-main-video element, falling back to UI method',
+  );
+
+  // Method 2 (fallback): Find the time display element in the UI
   const timeCurrentElement = document.querySelector('.ytp-time-current');
   if (!timeCurrentElement) {
     logger.warn('Could not find .ytp-time-current element');
@@ -306,13 +322,15 @@ function readPlayheadPosition(): number | null {
   const seconds = parseTimeString(timeText);
   if (seconds === null) {
     logger.warn('Failed to parse time text', { timeText });
+  } else {
+    logger.log('Read playhead position from UI element', { position: seconds });
   }
 
   return seconds;
 }
 
 /**
- * Updates the current playhead position by reading the .ytp-time-current element
+ * Updates the current playhead position by reading from the video element or UI
  */
 function updatePlayheadPosition(): void {
   try {
