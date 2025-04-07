@@ -10,7 +10,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "dev": "rollup -wc --watch.onStart 'firefox dist/llmop.user.js'",
+    "dev": "rollup -wc --watch.onStart 'firefox dist/llmop.debug.user.js'",
     "clean": "del-cli dist",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -19,6 +19,8 @@
     "ci": "run-s lint test",
     "check": "rollup -c --environment NODE_ENV:production,NO_EMIT > /dev/null",
     "build:js": "rollup -c",
+    "build:debug": "rollup -c",
+    "build:release": "cross-env NODE_ENV=production rollup -c",
     "build": "cross-env NODE_ENV=production run-s ci clean build:js"
   },
   "dependencies": {

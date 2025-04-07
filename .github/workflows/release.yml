@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+      - 'src/**'
+      - 'rollup.config.mjs'
+      - '.github/workflows/release.yml'
+
+# Ensure we don't run multiple release workflows at the same time
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # First, wait for the test workflow to complete successfully
+  wait-for-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for tests to succeed
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ github.ref }}
+          check-name: 'test'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+  # Then build and release
+  build-and-release:
+    needs: wait-for-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build userscript (debug and release versions)
+        run: |
+          yarn clean
+          yarn build:debug
+          yarn build:release
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check if release exists
+        id: check-release
+        run: |
+          if gh release view v${{ steps.package-version.outputs.version }} &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # If no tags exist, use all commits
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            git log --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            # Otherwise, use commits since the latest tag
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            git log ${LATEST_TAG}..HEAD --pretty=format:"* %s (%h)" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create new release
+        if: steps.check-release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ steps.package-version.outputs.version }}
+          tag_name: v${{ steps.package-version.outputs.version }}
+          body: |
+            ## Changelog
+            ${{ steps.changelog.outputs.CHANGELOG }}
+          files: |
+            dist/llmop.user.js
+            dist/llmop.debug.user.js
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update existing release
+        if: steps.check-release.outputs.exists == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ steps.package-version.outputs.version }}
+          tag_name: v${{ steps.package-version.outputs.version }}
+          body: |
+            ## Changelog
+            ${{ steps.changelog.outputs.CHANGELOG }}
+          files: |
+            dist/llmop.user.js
+            dist/llmop.debug.user.js
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
