@@ -3,7 +3,7 @@
  * Contains functions for parsing and formatting time values
  */
 
-import { createLogger } from './debug';
+import { createLogger } from '../core/debug';
 
 // Create a logger for this module
 const logger = createLogger('TimeUtils');

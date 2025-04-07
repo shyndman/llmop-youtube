@@ -1,9 +1,9 @@
 import { createSignal, onCleanup } from 'solid-js';
-import { createLogger } from './debug';
-import { getPollingIntervalSync } from './config';
+import { createLogger } from '../core/debug';
+import { getPollingIntervalSync } from '../core/config';
 import { extractCaptions } from './caption-extractor';
-import { extractVideoId } from './url-utils';
-import { VideoEvent } from './gemini-client';
+import { extractVideoId } from '../utils/url-utils';
+import { VideoEvent } from '../gemini/gemini-client';
 
 // Create a logger for this module
 const logger = createLogger('YouTubeWatcher');

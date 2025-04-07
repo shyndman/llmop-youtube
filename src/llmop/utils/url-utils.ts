@@ -3,7 +3,7 @@
  * Contains functions for extracting information from YouTube URLs
  */
 
-import { createLogger } from './debug';
+import { createLogger } from '../core/debug';
 
 // Create a logger for this module
 const logger = createLogger('UrlUtils');
