@@ -5,4 +5,12 @@
 
 export * from './langchain-client';
 export * from './schemas';
-export * from './langsmith-config';
+// Export LangSmith functions from langsmith.ts
+export { getLangChainTracer, createTracingCallbacks } from './langsmith';
+
+// Export LangSmith config functions from config.ts
+export {
+  getLangSmithConfig,
+  getLangSmithTracingEnabled,
+  shouldTraceRequest,
+} from '../config';
