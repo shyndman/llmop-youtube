@@ -44,7 +44,7 @@ const DEFAULT_OPTIONS: LLMOptions = {
   temperature: 0.2, // Low temperature for more deterministic outputs
   topK: 40,
   topP: 0.95,
-  maxOutputTokens: 2048,
+  maxOutputTokens: 4096,
 };
 
 /**
