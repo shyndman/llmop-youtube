@@ -14,13 +14,7 @@ import {
   VideoAnalysisResponse,
   VideoQuestionResponse,
 } from './schemas';
-import {
-  shouldTraceRequest,
-  getLangSmithConfig,
-  getLangSmithTracingEnabled,
-  getLangChainTracer,
-  setupLangSmithEnvironment,
-} from './langsmith-config';
+import { createTracingCallbacks } from './langsmith';
 
 // Create a logger for this module
 const logger = createLogger('LangChainClient');
@@ -101,25 +95,8 @@ export class LangChainClient {
    * @private
    */
   private async configureLangSmith(): Promise<void> {
-    try {
-      // Set up the LangSmith environment variables
-      await setupLangSmithEnvironment();
-
-      // Get LangSmith configuration
-      const config = await getLangSmithConfig();
-
-      if (config.tracing) {
-        logger.info('LangSmith tracing configured successfully');
-      } else {
-        if (!(await getLangSmithTracingEnabled())) {
-          logger.info('LangSmith tracing is disabled');
-        } else {
-          logger.warn('LangSmith API key not set, tracing will be disabled');
-        }
-      }
-    } catch (error) {
-      logger.error('Error configuring LangSmith', error);
-    }
+    // Nothing to do here - tracing is configured per request
+    // This is kept for compatibility with the existing code
   }
 
   /**
@@ -164,48 +141,17 @@ export class LangChainClient {
       logger.info('Sending request to LLM');
       const startTime = Date.now();
 
-      // Check if this request should be traced with LangSmith
-      const shouldTrace = await shouldTraceRequest();
-      if (shouldTrace) {
-        // Get LangChain tracer for this request
-        const tracer = await getLangChainTracer();
-        if (tracer) {
-          // Create callbacks configuration for LangChain
-          const callbacks = [tracer];
-          logger.info('LangSmith tracing enabled for this request');
+      // Get tracing callbacks if enabled
+      const callbacks = await createTracingCallbacks();
 
-          // Generate content with structured output and tracing
-          const response = await this.model.invoke(
-            [
-              ['system', systemPrompt],
-              ['human', userPrompt],
-            ],
-            { callbacks },
-          );
-
-          const elapsedTime = Date.now() - startTime;
-          logger.info(`LLM response received in ${elapsedTime}ms`);
-
-          // Parse the structured output
-          const structuredOutput = await parser.parse(
-            response.content.toString(),
-          );
-
-          // Log the response for debugging
-          logger.info('Received video analysis from LLM');
-
-          logger.info('Successfully generated video analysis');
-          return structuredOutput;
-        }
-      }
-
-      // If tracing is not enabled, proceed without tracing
-
-      // Generate content with structured output (without tracing)
-      const response = await this.model.invoke([
-        ['system', systemPrompt],
-        ['human', userPrompt],
-      ]);
+      // Generate content with structured output (with or without tracing)
+      const response = await this.model.invoke(
+        [
+          ['system', systemPrompt],
+          ['human', userPrompt],
+        ],
+        callbacks ? { callbacks } : undefined,
+      );
 
       const elapsedTime = Date.now() - startTime;
       logger.info(`LLM response received in ${elapsedTime}ms`);
@@ -247,48 +193,17 @@ export class LangChainClient {
       logger.info('Sending request to LLM');
       const startTime = Date.now();
 
-      // Check if this request should be traced with LangSmith
-      const shouldTrace = await shouldTraceRequest();
-      if (shouldTrace) {
-        // Get LangChain tracer for this request
-        const tracer = await getLangChainTracer();
-        if (tracer) {
-          // Create callbacks configuration for LangChain
-          const callbacks = [tracer];
-          logger.info('LangSmith tracing enabled for this request');
+      // Get tracing callbacks if enabled
+      const callbacks = await createTracingCallbacks();
 
-          // Generate content with structured output and tracing
-          const response = await this.model.invoke(
-            [
-              ['system', systemPrompt],
-              ['human', userPrompt],
-            ],
-            { callbacks },
-          );
-
-          const elapsedTime = Date.now() - startTime;
-          logger.info(`LLM response received in ${elapsedTime}ms`);
-
-          // Parse the structured output
-          const structuredOutput = await parser.parse(
-            response.content.toString(),
-          );
-
-          // Log the response for debugging
-          logger.info('Received question answer from LLM');
-
-          logger.info('Successfully generated answer to question');
-          return structuredOutput;
-        }
-      }
-
-      // If tracing is not enabled, proceed without tracing
-
-      // Generate content with structured output (without tracing)
-      const response = await this.model.invoke([
-        ['system', systemPrompt],
-        ['human', userPrompt],
-      ]);
+      // Generate content with structured output (with or without tracing)
+      const response = await this.model.invoke(
+        [
+          ['system', systemPrompt],
+          ['human', userPrompt],
+        ],
+        callbacks ? { callbacks } : undefined,
+      );
 
       const elapsedTime = Date.now() - startTime;
       logger.info(`LLM response received in ${elapsedTime}ms`);
