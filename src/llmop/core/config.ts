@@ -12,7 +12,7 @@ export const DEFAULT_CAPTIONS_CACHE_SIZE = 10; // Number of videos to cache
 export async function getApiKey(): Promise<string> {
   return await GM.getValue('geminiApiKey', '');
 }
-
+adsf
 /**
  * Get the Google Gemini API key synchronously (for backward compatibility)
  * @returns The API key or an empty string if not set
