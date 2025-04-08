@@ -3,7 +3,11 @@ import { render } from 'solid-js/web';
 import { getPanel, showToast } from '@violentmonkey/ui';
 // Styles removed
 // Import configuration
-import { getApiKey, getGeminiModel, getGeminiTemperature } from './config';
+import {
+  getApiKey,
+  getGeminiModel,
+  getGeminiTemperature,
+} from '../core/config';
 // Import YouTube watcher
 import {
   currentVideoId,
@@ -12,16 +16,16 @@ import {
   currentEvents,
   setVideoEvents,
   delay,
-} from './youtube-watcher';
+} from '../youtube/youtube-watcher';
 // Import debug utilities
-import { createLogger } from './debug';
+import { createLogger } from '../core/debug';
 // Import Gemini client
 import {
   GeminiClient,
   VideoEvent,
   VideoQuestionResponse,
   QueryType,
-} from './gemini-client';
+} from '../gemini/gemini-client';
 
 // Create a logger for this module
 const logger = createLogger('App');

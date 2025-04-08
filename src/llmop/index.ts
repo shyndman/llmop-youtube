@@ -1,7 +1,7 @@
 import './meta.js?userscript-metadata';
-import { initYouTubeWatcher } from './youtube-watcher';
-import { initDebug, log } from './debug';
-import './app';
+import { initYouTubeWatcher } from './youtube';
+import { initDebug, log } from './core';
+import './ui';
 
 // Initialize the debug system first
 initDebug().then(() => {

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { VideoEvent } from '../src/llmop/gemini-client';
+import { VideoEvent } from '../src/llmop/gemini/gemini-client';
 
 describe('VideoEvent', () => {
   // Create some test events

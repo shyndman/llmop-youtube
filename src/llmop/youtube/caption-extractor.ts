@@ -29,8 +29,8 @@ interface CaptionTrack {
   // Add other properties as needed
 }
 
-import { createLogger } from './debug';
-import { extractVideoId } from './url-utils';
+import { createLogger } from '../core/debug';
+import { extractVideoId } from '../utils/url-utils';
 import GM_fetch from '@trim21/gm-fetch';
 
 // Create a logger for this module
