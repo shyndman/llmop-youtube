@@ -4,9 +4,9 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { createLogger } from './debug';
+import { createLogger } from '../core/debug';
 import GM_fetch from '@trim21/gm-fetch';
-import { DEFAULT_GEMINI_MODEL } from './config';
+import { DEFAULT_GEMINI_MODEL } from '../core/config';
 
 // Create a logger for this module
 const logger = createLogger('GeminiClient');

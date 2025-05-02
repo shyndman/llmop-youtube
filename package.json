@@ -17,7 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ci": "run-s lint test",
-    "check": "rollup -c --environment NODE_ENV:production,NO_EMIT > /dev/null",
+    "check": "tsc",
     "build:js": "rollup -c",
     "build:debug": "rollup -c",
     "build:release": "cross-env NODE_ENV=production rollup -c",

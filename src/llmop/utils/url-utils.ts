@@ -3,7 +3,7 @@
  * Contains functions for extracting information from YouTube URLs
  */
 
-import { createLogger } from './debug';
+import { createLogger } from '../core/debug';
 
 // Create a logger for this module
 const logger = createLogger('UrlUtils');
@@ -18,8 +18,9 @@ export function extractVideoId(url: string): string | null {
     const parsedUrl = new URL(url);
 
     // Handle youtube.com/watch?v=VIDEO_ID format
+    const allowedHostnames = ['youtube.com', 'www.youtube.com'];
     if (
-      parsedUrl.hostname.includes('youtube.com') &&
+      allowedHostnames.includes(parsedUrl.hostname) &&
       parsedUrl.pathname === '/watch'
     ) {
       return parsedUrl.searchParams.get('v');

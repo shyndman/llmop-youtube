@@ -10,8 +10,8 @@ import {
   currentPlayheadPosition,
   currentEvents,
   setVideoEvents,
-} from '../src/llmop/youtube-watcher';
-import { VideoEvent } from '../src/llmop/gemini-client';
+} from '../src/llmop/youtube/youtube-watcher';
+import { VideoEvent } from '../src/llmop/gemini/gemini-client';
 
 // Mock the solid-js createEffect and createSignal functions
 vi.mock('solid-js', () => ({
@@ -36,7 +36,7 @@ let mockPlayheadPosition = 0;
 let mockEvents: VideoEvent[] = [];
 
 // Mock the YouTube watcher module
-vi.mock('../src/llmop/youtube-watcher', () => ({
+vi.mock('../src/llmop/youtube/youtube-watcher', () => ({
   currentVideoId: vi.fn(() => mockVideoId),
   currentPlayheadPosition: vi.fn(() => mockPlayheadPosition),
   currentEvents: vi.fn(() => mockEvents),
