@@ -1100,13 +1100,15 @@
   dependencies:
     "@babel/runtime" "^7.21.5"
 
-"@google/genai@^0.7.0":
-  version "0.7.0"
-  resolved "https://registry.npmjs.org/@google/genai/-/genai-0.7.0.tgz"
-  integrity sha512-r+Fwj/emnXZN5R+4JCxDXboY4AGTmTn7+Wnori5dgyJiStP0P82f9YYL0CVsCnDIumNY2i0UIcZ1zGZdtHJ34w==
+"@google/genai@^0.13.0":
+  version "0.13.0"
+  resolved "https://registry.yarnpkg.com/@google/genai/-/genai-0.13.0.tgz#f074b4772473d9e054c45a35b06c404b1a4e6125"
+  integrity sha512-eaEncWt875H7046T04mOpxpHJUM+jLIljEf+5QctRyOeChylE/nhpwm1bZWTRWoOu/t46R9r+PmgsJFhTpE7tQ==
   dependencies:
     google-auth-library "^9.14.2"
     ws "^8.18.0"
+    zod "^3.22.4"
+    zod-to-json-schema "^3.22.4"
 
 "@humanfs/core@^0.19.1":
   version "0.19.1"
@@ -5515,3 +5517,13 @@ yocto-queue@^0.1.0:
   version "0.1.0"
   resolved "https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz"
   integrity sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
+
+zod-to-json-schema@^3.22.4:
+  version "3.24.5"
+  resolved "https://registry.yarnpkg.com/zod-to-json-schema/-/zod-to-json-schema-3.24.5.tgz#d1095440b147fb7c2093812a53c54df8d5df50a3"
+  integrity sha512-/AuWwMP+YqiPbsJx5D6TfgRTc4kTLjsh5SOcd4bLsfUg2RcEXrFMJl1DGgdHy2aCfsIA/cr/1JM0xcB2GZji8g==
+
+zod@^3.22.4:
+  version "3.24.4"
+  resolved "https://registry.yarnpkg.com/zod/-/zod-3.24.4.tgz#e2e2cca5faaa012d76e527d0d36622e0a90c315f"
+  integrity sha512-OdqJE9UDRPwWsrHjLN2F8bPxvwJBK22EHLWtanu0LSYr5YqzsaaW3RMgmjwr8Rypg5k+meEJdSPXJZXE/yqOMg==
