@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.24.1",
-    "@google/genai": "^0.7.0",
+    "@google/genai": "^1.6.0",
     "@trim21/gm-fetch": "^0.3.0",
     "@violentmonkey/dom": "^2.1.6",
     "@violentmonkey/ui": "^0.7.8",
